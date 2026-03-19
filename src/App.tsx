@@ -167,7 +167,7 @@ export default function App() {
       const decryptedContent = bytes.toString(CryptoJS.enc.Utf8);
 
       if (!decryptedContent) {
-        throw new Error("Decryption failed");
+        throw new Error("Incorrect password or invalid link");
       }
 
       setViewedContent(decryptedContent);
@@ -516,7 +516,7 @@ export default function App() {
                       <h3 className="text-xl font-bold text-white">AES-256 Encryption</h3>
                     </div>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                      Every message is encrypted with AES-256 in your browser before upload. Content is encrypted at rest and in transit.
+                      Messages are encrypted in your browser before upload, stored encrypted on the server, and protected in transit by HTTPS.
                     </p>
                   </div>
 
