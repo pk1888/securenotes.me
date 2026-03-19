@@ -80,6 +80,17 @@ async function startServer() {
   }));
   app.options('*', cors());
   app.use(express.json({ limit: '10mb' }));
+  
+  // Security headers
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    // No-store for message endpoints to prevent caching
+    if (req.path.startsWith('/api/messages')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+    next();
+  });
 
   // Health check endpoint for Docker/container orchestration
   app.get("/health", async (req, res) => {
@@ -98,14 +109,18 @@ async function startServer() {
       return res.status(400).json({ error: "Encrypted content is required" });
     }
 
+    // Validate and clamp inputs
+    const safeExpiresInMinutes = Math.min(Math.max(Number(expiresInMinutes) || 60, 1), 10080); // 1 min to 7 days
+    const safeMaxViews = Math.min(Math.max(Number(maxViews) || 1, 1), 100); // 1 to 100 views
+
     const id = uuidv4();
-    const expiresAt = new Date(Date.now() + (expiresInMinutes || 60) * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + safeExpiresInMinutes * 60 * 1000).toISOString();
     
     // Store pre-encrypted content directly - server cannot decrypt
     // Store password protection flag for metadata only (no hash)
     try {
       await run(db, "INSERT INTO messages (id, content, is_password_protected, expires_at, max_views) VALUES (?, ?, ?, ?, ?)", 
-        [id, encryptedContent, isPasswordProtected ? 1 : 0, expiresAt, maxViews || 1]);
+        [id, encryptedContent, isPasswordProtected ? 1 : 0, expiresAt, safeMaxViews]);
       
       res.json({ id, expiresAt });
     } catch (err) {
@@ -154,6 +169,13 @@ async function startServer() {
       if (!message) {
         await run(db, "ROLLBACK");
         return res.status(404).json({ error: "Message not found or already destroyed" });
+      }
+
+      // Double-check expiration
+      if (new Date(message.expires_at) < new Date()) {
+        await run(db, "DELETE FROM messages WHERE id = ?", [id]);
+        await run(db, "COMMIT");
+        return res.status(410).json({ error: "Message has expired" });
       }
 
       // Check if this is the last view and delete atomically if so
