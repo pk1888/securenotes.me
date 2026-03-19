@@ -1,0 +1,5 @@
+{
+  "name": "securenotes.me",
+  "description": "A secure, self-destructing message tool with SQLite encryption and password protection.",
+  "requestFramePermissions": []
+}
