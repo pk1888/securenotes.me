@@ -75,20 +75,33 @@ async function startServer() {
   const app = express();
 
   // Middleware
-  const allowedOrigin = process.env.APP_ORIGIN || true; // Allow specific origin or fall back to true for dev
-  app.use(cors({
+  const allowedOrigin = isProd ? process.env.APP_ORIGIN : true;
+  
+  if (isProd && !allowedOrigin) {
+    console.error("FATAL: APP_ORIGIN environment variable is required in production");
+    process.exit(1);
+  }
+
+  const corsOptions = {
     origin: allowedOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type']
-  }));
-  app.options('*', cors());
+  };
+
+  app.use(cors(corsOptions));
+  app.options("*", cors(corsOptions));
   app.use(express.json({ limit: '10mb' }));
   
   // Security headers
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    );
     // No-store for message endpoints to prevent caching
     if (req.path.startsWith('/api/messages')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
