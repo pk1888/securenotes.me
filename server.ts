@@ -114,8 +114,35 @@ async function startServer() {
     }
   });
 
-  // Fetch encrypted message with atomic view reservation
+  // Fetch encrypted message (read-only)
   app.get("/api/messages/:id", async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      const message = await get(db, "SELECT * FROM messages WHERE id = ?", [id]);
+
+      if (!message) {
+        return res.status(404).json({ error: "Message not found or already destroyed" });
+      }
+
+      // Check expiration
+      if (new Date(message.expires_at) < new Date()) {
+        await run(db, "DELETE FROM messages WHERE id = ?", [id]);
+        return res.status(410).json({ error: "Message has expired" });
+      }
+
+      // Return encrypted content without deleting/incrementing
+      res.json({ 
+        encryptedContent: message.content
+      });
+    } catch (err) {
+      if (!isProd) console.error(err);
+      res.status(500).json({ error: "Failed to retrieve message" });
+    }
+  });
+
+  // Confirm view (increment or delete after successful decryption)
+  app.post("/api/messages/:id/view", async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -129,18 +156,10 @@ async function startServer() {
         return res.status(404).json({ error: "Message not found or already destroyed" });
       }
 
-      // Check expiration
-      if (new Date(message.expires_at) < new Date()) {
-        await run(db, "DELETE FROM messages WHERE id = ?");
-        await run(db, "COMMIT");
-        return res.status(410).json({ error: "Message has expired" });
-      }
-
-      // Check if this would be the last view
+      // Check if this is the last view and delete atomically if so
       const newViewCount = message.view_count + 1;
       const isLastView = newViewCount >= message.max_views;
       
-      // Atomically consume the view immediately
       if (isLastView) {
         await run(db, "DELETE FROM messages WHERE id = ?", [id]);
       } else {
@@ -149,16 +168,18 @@ async function startServer() {
       
       await run(db, "COMMIT");
 
-      // Return encrypted content with consumption status
       res.json({ 
-        encryptedContent: message.content,
-        isLastView: isLastView,
-        consumed: true
+        success: true,
+        isLastView: isLastView
       });
     } catch (err) {
-      await run(db, "ROLLBACK");
+      try {
+        await run(db, "ROLLBACK");
+      } catch (rollbackErr) {
+        // Ignore rollback errors
+      }
       if (!isProd) console.error(err);
-      res.status(500).json({ error: "Failed to retrieve message" });
+      res.status(500).json({ error: "Failed to confirm view" });
     }
   });
 
