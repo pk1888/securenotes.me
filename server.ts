@@ -5,6 +5,7 @@ import sqlcipher from "@journeyapps/sqlcipher";
 import { v4 as uuidv4 } from "uuid";
 import cors from "cors";
 import dotenv from "dotenv";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
 
@@ -21,15 +22,15 @@ if (!DB_ENCRYPTION_KEY) {
   process.exit(1);
 }
 
-// Escape key for SQL safety
-const escapedKey = DB_ENCRYPTION_KEY.replace(/"/g, '""');
+// Escape key for SQL safety - use single quotes
+const escapedKey = DB_ENCRYPTION_KEY.replace(/'/g, "''");
 
 const dbPath = process.env.NODE_ENV === "production" 
   ? "/app/data/messages.db" 
   : "messages.db";
 
 const db = new Database(dbPath);
-db.run(`PRAGMA KEY = "${escapedKey}"`);
+db.run(`PRAGMA key = '${escapedKey}'`);
 
 // Helper functions
 const run = (db: any, sql: string, params?: any[]) => {
@@ -88,6 +89,21 @@ try {
 async function startServer() {
   const app = express();
 
+  // Rate limiting
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // 100 requests per 15 minutes
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const createLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes  
+    max: 20, // 20 creates per 15 minutes
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Middleware
   const allowedOrigin = isProd ? process.env.APP_ORIGIN : true;
   
@@ -104,6 +120,11 @@ async function startServer() {
 
   app.use(cors(corsOptions));
   app.options("*", cors(corsOptions));
+  
+  // Apply rate limiting to API endpoints
+  app.use("/api/", apiLimiter);
+  app.use("/api/messages", createLimiter);
+  
   app.use(express.json({ limit: '2mb' }));
   
   // Security headers
@@ -272,11 +293,20 @@ async function startServer() {
   // Force production mode - serve static files
   const distPath = path.join(process.cwd(), "dist");
   app.use(express.static(distPath));
+  
   // Catch-all for SPA - only if not an API route
   app.get("*", (req, res) => {
     if (req.path.startsWith('/api') || req.path === '/health') {
       return res.status(404).json({ error: "API endpoint not found" });
     }
+
+    // Add no-store headers for view pages to prevent caching
+    if (req.path.startsWith("/view/")) {
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+    }
+
     res.sendFile(path.join(distPath, "index.html"));
   });
 
