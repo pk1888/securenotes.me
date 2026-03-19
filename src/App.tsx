@@ -34,51 +34,14 @@ export default function App() {
   // Handle routing on page load
   useEffect(() => {
     const path = window.location.pathname;
-    if (path === "/about") {
-      setStatus("about");
-    } else if (path === "/privacy") {
-      setStatus("privacy-guide");
-    } else if (path === "/analytics") {
-      setStatus("analytics-info");
-    } else if (path.startsWith("/view/")) {
-      const id = path.split("/view/")[1];
-      if (id) {
-        setViewId(id);
-        setStatus("viewing");
-      }
-    }
-  }, []);
-
-  const PRIVACY_MANTRAS = [
-    "Privacy is not a crime. It is a fundamental human right.",
-    "Government overreach starts with 'just one look'. Seal your data.",
-    "Self-hosting is the only way to truly own your digital identity.",
-    "A VPN is your first line of defense in the digital underworld.",
-    "Your data is the new oil. Don't let them drill for free.",
-    "Encryption is the math that keeps us free.",
-    "VPS: Your own private bunker in the cloud. Choose wisely.",
-    "They are watching. Make sure they see nothing.",
-    "Decentralize or die. The future is private.",
-    "Keep fighting for privacy. The shadows are our sanctuary.",
-    "Resist the Digital ID. Do not become a number in their database.",
-    "Digital prisons are being built. Encryption is the key to your cell.",
-    "Trust no government. Trust only the math."
-  ];
-
-  useEffect(() => {
-    if (status === "viewed" || status === "idle") {
-      setPrivacyMantra(PRIVACY_MANTRAS[Math.floor(Math.random() * PRIVACY_MANTRAS.length)]);
-    }
-  }, [status]);
-
-  useEffect(() => {
-    const path = window.location.pathname;
     if (path.startsWith("/view/")) {
       const id = path.split("/view/")[1];
       if (id) {
         setViewId(id);
         setStatus("viewing");
       }
+    } else if (path === "/about") {
+      setStatus("about");
     } else if (path === "/privacy") {
       setStatus("privacy-guide");
     } else if (path === "/analytics") {
@@ -110,15 +73,14 @@ export default function App() {
       
       // Encrypt content in browser
       const encryptedContent = CryptoJS.AES.encrypt(content, encryptionKey).toString();
-      const passwordHash = password ? CryptoJS.SHA256(password).toString() : null;
       
-      // Send already-encrypted content to server
+      // Send already-encrypted content to server (no password hash)
       const createRes = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           encryptedContent, 
-          passwordHash, 
+          isPasswordProtected: !!password,
           expiresInMinutes: expiresIn, 
           maxViews 
         }),
@@ -128,8 +90,8 @@ export default function App() {
 
       const data = await createRes.json();
       
-      // Include key/salt in URL fragment (never sent to server)
-      const keyFragment = password ? `${salt}:${passwordHash}` : encryptionKey;
+      // Include key/salt in URL fragment with prefix (never sent to server)
+      const keyFragment = password ? `p:${salt}` : `k:${encryptionKey}`;
       setResultId(`${data.id}#${keyFragment}`);
       setStatus("created");
     } catch (err: any) {
@@ -147,42 +109,36 @@ export default function App() {
       if (!fragment) throw new Error("Invalid message link");
       
       let encryptionKey: string;
+      let isPasswordProtected = false;
       
-      if (fragment.includes(':')) {
-        // Password-protected message: salt:hash
-        const [salt, storedHash] = fragment.split(':');
+      // Check fragment prefix to determine mode
+      if (fragment.startsWith("k:")) {
+        // Direct key (no password)
+        encryptionKey = fragment.slice(2);
+      } else if (fragment.startsWith("p:")) {
+        // Password-protected mode
+        isPasswordProtected = true;
+        const salt = fragment.slice(2);
         const inputPassword = pass || password;
         if (!inputPassword) {
           setRequiresPassword(true);
           setStatus("viewing");
           return;
         }
-        // Verify password hash
-        const inputHash = CryptoJS.SHA256(inputPassword).toString();
-        if (inputHash !== storedHash) {
-          throw new Error("Incorrect password");
-        }
-        // Derive key from password
+        // Derive key from password and salt
         encryptionKey = deriveKeyFromPassword(inputPassword, salt);
       } else {
-        // No password: direct key
-        encryptionKey = fragment;
+        throw new Error("Invalid message link format");
       }
       
-      // Fetch encrypted message
+      // Fetch encrypted message (no password sent)
       const res = await fetch(`/api/messages/${viewId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pass || password }),
+        body: JSON.stringify({}),
       });
 
       const data = await res.json();
-
-      if (res.status === 401 && data.requiresPassword) {
-        setRequiresPassword(true);
-        setStatus("viewing");
-        return;
-      }
 
       if (!res.ok) throw new Error(data.error || "Failed to retrieve message");
 
@@ -191,7 +147,11 @@ export default function App() {
       const decryptedContent = bytes.toString(CryptoJS.enc.Utf8);
 
       if (!decryptedContent) {
-        throw new Error("Decryption failed");
+        if (isPasswordProtected) {
+          throw new Error("Incorrect password");
+        } else {
+          throw new Error("Decryption failed");
+        }
       }
 
       setViewedContent(decryptedContent);
@@ -210,16 +170,40 @@ export default function App() {
   };
 
   const reset = () => {
-    window.history.pushState({}, "", "/");
     setStatus("idle");
     setContent("");
     setPassword("");
+    setExpiresIn(60);
+    setMaxViews(1);
     setResultId("");
     setViewId("");
     setViewedContent("");
     setError("");
+    setCopied(false);
     setRequiresPassword(false);
+    window.history.pushState({}, "", "/");
   };
+
+  useEffect(() => {
+    const mantras = [
+      "Privacy is not a crime. It is a fundamental human right.",
+      "Government overreach starts with 'just one look'. Seal your data.",
+      "Self-hosting is the only way to truly own your digital identity.",
+      "A VPN is your first line of defense in the digital underworld.",
+      "Your data is the new oil. Don't let them drill for free.",
+      "Encryption is the math that keeps us free.",
+      "VPS: Your own private bunker in the cloud. Choose wisely.",
+      "They are watching. Make sure they see nothing.",
+      "Decentralize or die. The future is private.",
+      "Keep fighting for privacy. The shadows are our sanctuary.",
+      "Resist the Digital ID. Do not become a number in their database.",
+      "Digital prisons are being built. Encryption is the key to your cell.",
+      "Trust no government. Trust only the math."
+    ];
+    
+    const randomMantra = mantras[Math.floor(Math.random() * mantras.length)];
+    setPrivacyMantra(randomMantra);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-300 font-mono flex flex-col selection:bg-red-900 selection:text-white">
@@ -238,8 +222,6 @@ export default function App() {
           <div className="hidden md:flex items-center gap-6 text-[10px] uppercase tracking-widest text-zinc-600">
             <div className="flex items-center gap-4">
               <span>Encrypted</span>
-              <span className="w-1 h-1 bg-zinc-800 rounded-full" />
-              <span>Anonymous</span>
               <span className="w-1 h-1 bg-zinc-800 rounded-full" />
               <span>Volatile</span>
             </div>
@@ -262,16 +244,25 @@ export default function App() {
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="mb-12 space-y-4 border-l-2 border-red-900/40 pl-6 py-2"
+              className="space-y-6"
             >
-              <p className="text-zinc-500 text-sm leading-relaxed max-w-2xl italic">
-                "We live in a world where privacy seems non-existent. Fight back. I'm 100% for PRIVACY online. This tool is 100% private. Data is encrypted and 100% deleted once opened. I don't log IPs."
-              </p>
-              <p className="text-red-500/80 text-xs font-bold uppercase tracking-[0.2em] leading-relaxed max-w-2xl">
-                We are at a point where we cannot trust our governments at all. Resist their push for DIGITAL IDs and DIGITAL prisons. Privacy is your only weapon in the coming age of total surveillance.
-              </p>
+              <div className="text-center space-y-4">
+                <div className="p-4 bg-red-950/20 border border-red-900/50 rounded-full">
+                  <ShieldAlert className="w-16 h-16 text-red-600" />
+                </div>
+                <h2 className="text-4xl font-bold text-white uppercase tracking-tighter">
+                  {status === "created" ? "Message Sealed" : "Create Secret Note"}
+                </h2>
+                <p className="text-zinc-500 max-w-2xl mx-auto">
+                  {status === "created" 
+                    ? "Your encrypted message has been created. Share the link below."
+                    : "Create an encrypted, self-destructing message that only the intended recipient can read."
+                  }
+                </p>
+              </div>
             </motion.div>
           )}
+
           <AnimatePresence mode="wait">
             {status === "idle" && (
               <motion.div
@@ -294,9 +285,9 @@ export default function App() {
                       transition={{
                         duration: 8,
                         repeat: Infinity,
-                        ease: "linear",
+                        ease: "linear"
                       }}
-                      className="absolute inset-[-100%] bg-[conic-gradient(from_0deg,transparent_0deg,transparent_300deg,rgba(153,27,27,0.4)_360deg)] opacity-0 group-focus-within:opacity-100 transition-opacity"
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-20"
                     />
                     <textarea
                       value={content}
@@ -493,141 +484,6 @@ export default function App() {
               </motion.div>
             )}
 
-            {status === "privacy-guide" && (
-              <motion.div
-                key="privacy-guide"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-12 pb-20"
-              >
-                <div className="space-y-4">
-                  <h2 className="text-4xl font-bold text-white tracking-tighter uppercase">The Privacy Manifesto</h2>
-                  <p className="text-zinc-500 max-w-2xl leading-relaxed">
-                    In an era of mass surveillance and data harvesting, privacy is your only defense. 
-                    Take back control of your digital life with these essential tools and practices.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* VPS Section */}
-                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">VPS: Your Private Bunker</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
-                      Don't trust big tech with your data. Rent a Virtual Private Server (VPS) from privacy-respecting providers like 
-                      <span className="text-zinc-300"> Mullvad</span>, <span className="text-zinc-300">Njalla</span>, or <span className="text-zinc-300">OrangeWebsite</span>. 
-                      Host your own services and stay off the grid.
-                    </p>
-                  </div>
-
-                  {/* VPN Section */}
-                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">VPN: Encrypt Your Traffic</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
-                      A VPN is essential for hiding your IP and encrypting your traffic. Avoid free VPNs—they are the product. 
-                      Use <span className="text-zinc-300">Mullvad VPN</span> or <span className="text-zinc-300">IVPN</span>. 
-                      They don't require emails and accept crypto/cash.
-                    </p>
-                  </div>
-
-                  {/* Adblockers Section */}
-                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Adblockers: Kill the Trackers</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
-                      Ads are tracking beacons. Use <span className="text-zinc-300">uBlock Origin</span> on your browser. 
-                      For network-wide protection, set up a <span className="text-zinc-300">Pi-hole</span> or <span className="text-zinc-300">AdGuard Home</span> on your VPS.
-                    </p>
-                  </div>
-
-                  {/* Self-Hosting Section */}
-                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Self-Host Everything</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
-                      Replace cloud services with self-hosted alternatives. Use <span className="text-zinc-300">Nextcloud</span> for files, 
-                      <span className="text-zinc-300">Vaultwarden</span> for passwords, and <span className="text-zinc-300">Matrix</span> for chat. 
-                      Your data, your rules.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-8 bg-red-950/10 border border-red-900/30 rounded-2xl text-center space-y-6">
-                  <h3 className="text-2xl font-bold text-white uppercase tracking-tighter">Ready to fight back?</h3>
-                  <p className="text-zinc-400 max-w-xl mx-auto italic">
-                    "The only way to keep a secret is to never tell it. The second best way is to encrypt it and host it yourself."
-                  </p>
-                  <button 
-                    onClick={reset}
-                    className="px-8 py-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
-                  >
-                    Return to the Shadows
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {status === "analytics-info" && (
-              <motion.div
-                key="analytics-info"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-12 pb-20"
-              >
-                <div className="space-y-4">
-                  <h2 className="text-4xl font-bold text-white tracking-tighter uppercase">What We See</h2>
-                  <p className="text-zinc-500 max-w-2xl leading-relaxed">
-                    Transparency is the foundation of trust. We use minimal, privacy-respecting analytics to understand site traffic without compromising your identity.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Zero IP Collection</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
-                      We <span className="text-red-500 font-bold">DO NOT</span> collect, store, or even see your IP address. Your location is only known at a country level, and your identity remains completely anonymous.
-                    </p>
-                  </div>
-
-                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">GoatCounter Analytics</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">
-                      We use <span className="text-zinc-300">GoatCounter</span>, an open-source, privacy-first analytics tool. It doesn't use cookies and doesn't track you across the web.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-6">
-                  <h3 className="text-xl font-bold text-white uppercase tracking-tight">The Data We Monitor</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {[
-                      "Top Referrers",
-                      "Browsers",
-                      "Country Locations",
-                      "Screen Sizes",
-                      "Operating Systems",
-                      "Visitor Counts"
-                    ].map((item) => (
-                      <div key={item} className="flex items-center gap-3 p-3 bg-black/40 border border-zinc-800 rounded-lg text-[10px] uppercase tracking-widest text-zinc-400">
-                        {item}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-sm text-zinc-500 leading-relaxed italic">
-                    "This data is used solely to see where traffic originates and to monitor site load. Both the site and the analytics instance are fully controlled by me on my own private server."
-                  </p>
-                </div>
-
-                <div className="text-center">
-                  <button 
-                    onClick={reset}
-                    className="px-8 py-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
-                  >
-                    Return to the Shadows
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
             {status === "about" && (
               <motion.div
                 key="about"
@@ -639,7 +495,7 @@ export default function App() {
                   <div className="w-16 h-16 border-4 border-red-900/20 border-t-red-600 rounded-full animate-spin" />
                   <h2 className="text-3xl font-bold text-white uppercase tracking-tight">About Secure Notes</h2>
                   <p className="text-zinc-400 max-w-2xl mx-auto">
-                    Military-grade encrypted messaging with zero knowledge architecture. Your privacy is not optional—it's mandatory.
+                    Client-side encrypted secret notes with honest privacy protection. Your messages are encrypted before they leave your browser.
                   </p>
                 </div>
 
@@ -647,10 +503,10 @@ export default function App() {
                   <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">🔐</span>
-                      <h3 className="text-xl font-bold text-white">256-bit AES Encryption</h3>
+                      <h3 className="text-xl font-bold text-white">AES-256 Encryption</h3>
                     </div>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                      Every message is encrypted with military-grade AES-256. Content is encrypted at rest and in transit, ensuring complete confidentiality.
+                      Every message is encrypted with AES-256 in your browser before upload. Content is encrypted at rest and in transit.
                     </p>
                   </div>
 
@@ -660,7 +516,7 @@ export default function App() {
                       <h3 className="text-xl font-bold text-white">Encrypted Database</h3>
                     </div>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                      The entire SQLite database is encrypted with SQLCipher. Even with physical access to the server, your data remains completely unreadable.
+                      The entire SQLite database is encrypted with SQLCipher. Even with physical access to the server, stored data remains unreadable.
                     </p>
                   </div>
 
@@ -670,7 +526,7 @@ export default function App() {
                       <h3 className="text-xl font-bold text-white">Self-Destructing</h3>
                     </div>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                      Messages automatically delete after viewing or expiration. Set custom time limits and view counts for complete control over your data.
+                      Messages automatically delete after viewing or expiration. Set custom time limits and view counts for data control.
                     </p>
                   </div>
 
@@ -680,21 +536,21 @@ export default function App() {
                       <h3 className="text-xl font-bold text-white">Optional Password</h3>
                     </div>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                      Add an extra layer of security with a password. Even if someone has the link, they can't access the message without the correct password.
+                      Add an extra layer of security with a password. Keys are derived locally in your browser using PBKDF2.
                     </p>
                   </div>
                 </div>
 
                 <div className="p-8 bg-red-950/10 border border-red-900/30 rounded-2xl text-center space-y-6">
-                  <h3 className="text-2xl font-bold text-white uppercase tracking-tighter">Zero Knowledge</h3>
+                  <h3 className="text-2xl font-bold text-white uppercase tracking-tighter">How It Works</h3>
                   <p className="text-zinc-400 max-w-2xl mx-auto">
-                    We have zero access to your messages. No tracking, no logs, no IP collection. Once a message is created, only the intended recipients can read it.
+                    Messages are encrypted in your browser before upload. The server stores only encrypted content, and decryption happens locally in your browser using either a link key or a password-derived key.
                   </p>
                   <div className="flex flex-wrap justify-center gap-4">
-                    <span className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-500 uppercase tracking-widest">No IP Logging</span>
-                    <span className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-500 uppercase tracking-widest">No Tracking</span>
+                    <span className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-500 uppercase tracking-widest">Client-Side Keys</span>
+                    <span className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-500 uppercase tracking-widest">PBKDF2 Key Derivation</span>
+                    <span className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-500 uppercase tracking-widest">SQLCipher Database</span>
                     <span className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-500 uppercase tracking-widest">Open Source</span>
-                    <span className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-500 uppercase tracking-widest">Self-Hostable</span>
                   </div>
                 </div>
 
@@ -771,7 +627,7 @@ export default function App() {
             </button>
           </div>
           <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center md:text-right">
-            Zero Knowledge Architecture
+            Client-Side Encrypted Notes
           </div>
         </div>
       </footer>
