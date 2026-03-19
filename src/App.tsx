@@ -215,6 +215,7 @@ export default function App() {
     setError("");
     setCopied(false);
     setRequiresPassword(false);
+    setViewConfirmed(false);
     window.history.pushState({}, "", "/");
   };
 
