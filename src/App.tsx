@@ -151,7 +151,7 @@ export default function App() {
         throw new Error("Invalid message link format");
       }
       
-      // Fetch encrypted message (no password sent)
+      // Fetch encrypted message (read-only - no deletion)
       const res = await fetch(`/api/messages/${viewId}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" }
@@ -171,6 +171,22 @@ export default function App() {
 
       setViewedContent(decryptedContent);
       setStatus("viewed");
+
+      // Only after successful decryption, confirm the view
+      try {
+        const confirmRes = await fetch(`/api/messages/${viewId}/view`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+
+        const confirmData = await confirmRes.json();
+        if (!confirmRes.ok) {
+          console.warn("Failed to confirm view, but message was displayed");
+        }
+      } catch (err) {
+        console.warn("Failed to confirm view, but message was displayed");
+      }
     } catch (err: any) {
       setError(err.message);
       setStatus("viewing");

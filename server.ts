@@ -114,7 +114,7 @@ async function startServer() {
     }
   });
 
-  // Fetch encrypted message
+  // Fetch encrypted message (read-only)
   app.get("/api/messages/:id", async (req, res) => {
     const { id } = req.params;
 
@@ -131,26 +131,47 @@ async function startServer() {
         return res.status(410).json({ error: "Message has expired" });
       }
 
-      // Atomic: Check if this is the last view and delete immediately if so
-      const newViewCount = message.view_count + 1;
-      const isLastView = newViewCount >= message.max_views;
-      
-      if (isLastView) {
-        // Delete atomically before returning
-        await run(db, "DELETE FROM messages WHERE id = ?", [id]);
-      } else {
-        // Update view count
-        await run(db, "UPDATE messages SET view_count = ? WHERE id = ?", [newViewCount, id]);
-      }
-
-      // Return encrypted content - client will decrypt
+      // Return encrypted content without deleting/incrementing
       res.json({ 
         encryptedContent: message.content,
-        isLastView: isLastView
+        currentViews: message.view_count,
+        maxViews: message.max_views
       });
     } catch (err) {
       if (!isProd) console.error(err);
       res.status(500).json({ error: "Failed to retrieve message" });
+    }
+  });
+
+  // Confirm view (increment or delete after successful decryption)
+  app.post("/api/messages/:id/view", async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      const message = await get(db, "SELECT * FROM messages WHERE id = ?", [id]);
+
+      if (!message) {
+        return res.status(404).json({ error: "Message not found or already destroyed" });
+      }
+
+      // Check if this is the last view and delete atomically if so
+      const newViewCount = message.view_count + 1;
+      const isLastView = newViewCount >= message.max_views;
+      
+      if (isLastView) {
+        await run(db, "DELETE FROM messages WHERE id = ?", [id]);
+      } else {
+        await run(db, "UPDATE messages SET view_count = ? WHERE id = ?", [newViewCount, id]);
+      }
+
+      res.json({ 
+        success: true,
+        isLastView: isLastView,
+        remainingViews: isLastView ? 0 : message.max_views - newViewCount
+      });
+    } catch (err) {
+      if (!isProd) console.error(err);
+      res.status(500).json({ error: "Failed to confirm view" });
     }
   });
 
