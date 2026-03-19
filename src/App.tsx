@@ -95,15 +95,14 @@ export default function App() {
       
       // Encrypt content in browser
       const encryptedContent = CryptoJS.AES.encrypt(content, encryptionKey).toString();
-      const passwordHash = password ? CryptoJS.SHA256(password).toString() : null;
       
-      // Send already-encrypted content to server
+      // Send already-encrypted content to server (no password hash)
       const createRes = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           encryptedContent, 
-          passwordHash, 
+          isPasswordProtected: !!password,
           expiresInMinutes: expiresIn, 
           maxViews 
         }),
@@ -113,8 +112,8 @@ export default function App() {
 
       const data = await createRes.json();
       
-      // Include key/salt in URL fragment (never sent to server)
-      const keyFragment = password ? `${salt}:${passwordHash}` : encryptionKey;
+      // Include key/salt in URL fragment with prefix (never sent to server)
+      const keyFragment = password ? `p:${salt}` : `k:${encryptionKey}`;
       setResultId(`${data.id}#${keyFragment}`);
       setStatus("created");
     } catch (err: any) {
@@ -133,41 +132,33 @@ export default function App() {
       
       let encryptionKey: string;
       
-      if (fragment.includes(':')) {
-        // Password-protected message: salt:hash
-        const [salt, storedHash] = fragment.split(':');
+      // Check fragment prefix to determine mode
+      if (fragment.startsWith("k:")) {
+        // Direct key (no password)
+        encryptionKey = fragment.slice(2);
+      } else if (fragment.startsWith("p:")) {
+        // Password-protected mode
+        const salt = fragment.slice(2);
         const inputPassword = pass || password;
         if (!inputPassword) {
           setRequiresPassword(true);
           setStatus("viewing");
           return;
         }
-        // Verify password hash
-        const inputHash = CryptoJS.SHA256(inputPassword).toString();
-        if (inputHash !== storedHash) {
-          throw new Error("Incorrect password");
-        }
-        // Derive key from password
+        // Derive key from password and salt
         encryptionKey = deriveKeyFromPassword(inputPassword, salt);
       } else {
-        // No password: direct key
-        encryptionKey = fragment;
+        throw new Error("Invalid message link format");
       }
       
-      // Fetch encrypted message
+      // Fetch encrypted message (no password sent)
       const res = await fetch(`/api/messages/${viewId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pass || password }),
+        body: JSON.stringify({}),
       });
 
       const data = await res.json();
-
-      if (res.status === 401 && data.requiresPassword) {
-        setRequiresPassword(true);
-        setStatus("viewing");
-        return;
-      }
 
       if (!res.ok) throw new Error(data.error || "Failed to retrieve message");
 
