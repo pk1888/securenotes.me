@@ -50,6 +50,15 @@ const get = (db: any, sql: string, params?: any[]) => {
   });
 };
 
+const exec = (db: any, sql: string) => {
+  return new Promise<void>((resolve, reject) => {
+    db.exec(sql, (err: any) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+};
+
 // Verify encryption
 try {
   await get(db, "SELECT count(*) as count FROM sqlite_master");
@@ -59,17 +68,22 @@ try {
 }
 
 // Create table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS messages (
-    id TEXT PRIMARY KEY,
-    content TEXT NOT NULL,
-    is_password_protected INTEGER,
-    expires_at DATETIME NOT NULL,
-    view_count INTEGER DEFAULT 0,
-    max_views INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
+try {
+  await exec(db, `
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      is_password_protected INTEGER,
+      expires_at DATETIME NOT NULL,
+      view_count INTEGER DEFAULT 0,
+      max_views INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch (err) {
+  console.error("FATAL: Failed to create database table");
+  process.exit(1);
+}
 
 async function startServer() {
   const app = express();
