@@ -80,7 +80,7 @@ export default function App() {
   const deriveKeyFromPassword = (password: string, salt: string) => {
     return CryptoJS.PBKDF2(password, salt, {
       keySize: 256/32,
-      iterations: 10000
+      iterations: 100000  // Increased from 10000 for better security
     }).toString();
   };
 
@@ -264,7 +264,7 @@ export default function App() {
             >
               <div className="mb-12 space-y-4 border-l-2 border-red-900/40 pl-6 py-2">
                 <p className="text-zinc-500 text-sm leading-relaxed max-w-2xl italic">
-                  "We live in a world where privacy seems non-existent. Fight back. I'm 100% for PRIVACY online. This tool is 100% private. Data is encrypted and 100% deleted once opened. I don't log IPs."
+                  "Messages are encrypted in your browser before upload. The server stores only encrypted content, and decryption happens locally in your browser. Messages are deleted after the configured view limit or expiry."
                 </p>
                 <p className="text-red-500/80 text-xs font-bold uppercase tracking-[0.2em] leading-relaxed max-w-2xl">
                   We are at a point where we cannot trust our governments at all. Resist their push for DIGITAL IDs and DIGITAL prisons. Privacy is your only weapon in the coming age of total surveillance.
