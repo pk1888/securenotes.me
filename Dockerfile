@@ -8,7 +8,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Force clean install to avoid cache issues with broken packages
+# Cache bust and force clean install
+ARG CACHE_BUST=1
 RUN rm -rf node_modules package-lock.json && npm install
 
 # Copy source code
