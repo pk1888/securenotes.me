@@ -152,7 +152,7 @@ export default function App() {
         throw new Error("Invalid message link format");
       }
       
-      // Fetch encrypted message (read-only - no deletion)
+      // Fetch encrypted message with atomic consumption
       const res = await fetch(`/api/messages/${viewId}`);
 
       const data = await res.json();
@@ -169,23 +169,9 @@ export default function App() {
 
       setViewedContent(decryptedContent);
       setStatus("viewed");
-
-      // Only after successful decryption, confirm the view
-      try {
-        const confirmRes = await fetch(`/api/messages/${viewId}/view`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({})
-        });
-
-        if (confirmRes.ok) {
-          setViewConfirmed(true);
-        } else {
-          console.warn("Failed to confirm view, but message was displayed");
-        }
-      } catch (err) {
-        console.warn("Failed to confirm view, but message was displayed");
-      }
+      
+      // Set viewConfirmed based on server response
+      setViewConfirmed(data.isLastView);
     } catch (err: any) {
       setError(err.message);
       setStatus("viewing");

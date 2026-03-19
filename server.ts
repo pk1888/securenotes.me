@@ -114,64 +114,51 @@ async function startServer() {
     }
   });
 
-  // Fetch encrypted message (read-only)
+  // Fetch encrypted message with atomic view reservation
   app.get("/api/messages/:id", async (req, res) => {
     const { id } = req.params;
 
     try {
+      // Begin transaction for atomicity
+      await run(db, "BEGIN IMMEDIATE TRANSACTION");
+      
       const message = await get(db, "SELECT * FROM messages WHERE id = ?", [id]);
 
       if (!message) {
+        await run(db, "ROLLBACK");
         return res.status(404).json({ error: "Message not found or already destroyed" });
       }
 
       // Check expiration
       if (new Date(message.expires_at) < new Date()) {
-        await run(db, "DELETE FROM messages WHERE id = ?", [id]);
+        await run(db, "DELETE FROM messages WHERE id = ?");
+        await run(db, "COMMIT");
         return res.status(410).json({ error: "Message has expired" });
       }
 
-      // Return encrypted content without deleting/incrementing
-      res.json({ 
-        encryptedContent: message.content,
-        currentViews: message.view_count,
-        maxViews: message.max_views
-      });
-    } catch (err) {
-      if (!isProd) console.error(err);
-      res.status(500).json({ error: "Failed to retrieve message" });
-    }
-  });
-
-  // Confirm view (increment or delete after successful decryption)
-  app.post("/api/messages/:id/view", async (req, res) => {
-    const { id } = req.params;
-
-    try {
-      const message = await get(db, "SELECT * FROM messages WHERE id = ?", [id]);
-
-      if (!message) {
-        return res.status(404).json({ error: "Message not found or already destroyed" });
-      }
-
-      // Check if this is the last view and delete atomically if so
+      // Check if this would be the last view
       const newViewCount = message.view_count + 1;
       const isLastView = newViewCount >= message.max_views;
       
+      // Atomically consume the view immediately
       if (isLastView) {
         await run(db, "DELETE FROM messages WHERE id = ?", [id]);
       } else {
         await run(db, "UPDATE messages SET view_count = ? WHERE id = ?", [newViewCount, id]);
       }
+      
+      await run(db, "COMMIT");
 
+      // Return encrypted content with consumption status
       res.json({ 
-        success: true,
+        encryptedContent: message.content,
         isLastView: isLastView,
-        remainingViews: isLastView ? 0 : message.max_views - newViewCount
+        consumed: true
       });
     } catch (err) {
+      await run(db, "ROLLBACK");
       if (!isProd) console.error(err);
-      res.status(500).json({ error: "Failed to confirm view" });
+      res.status(500).json({ error: "Failed to retrieve message" });
     }
   });
 
