@@ -8,21 +8,14 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Cache bust and force clean install
-ARG CACHE_BUST=1
-RUN rm -rf node_modules package-lock.json && npm install
+# Install dependencies
+RUN npm ci
 
-# Install specific Vite version that works
-RUN npm install vite@5.4.10 --save-dev
-
-# Set Node.js module resolution
-ENV NODE_OPTIONS="--experimental-modules"
-
-# Copy source code
+# Copy source code (excluding node_modules via .dockerignore)
 COPY . .
 
-# Build using node directly with module resolution
-RUN node --experimental-modules ./node_modules/vite/bin/vite.js build
+# Build the frontend
+RUN npm run build
 
 # Production stage
 FROM node:20-bullseye AS production
@@ -43,7 +36,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm install --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy built assets from builder
 COPY --from=builder /app/dist ./dist
