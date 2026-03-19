@@ -271,18 +271,12 @@ export default function App() {
               animate={{ opacity: 1 }}
               className="space-y-6"
             >
-              <div className="text-center space-y-4">
-                <div className="p-4 bg-red-950/20 border border-red-900/50 rounded-full">
-                  <ShieldAlert className="w-16 h-16 text-red-600" />
-                </div>
-                <h2 className="text-4xl font-bold text-white uppercase tracking-tighter">
-                  {status === "created" ? "Message Sealed" : "Create Secret Note"}
-                </h2>
-                <p className="text-zinc-500 max-w-2xl mx-auto">
-                  {status === "created" 
-                    ? "Your encrypted message has been created. Share the link below."
-                    : "Create an encrypted, self-destructing message that only the intended recipient can read."
-                  }
+              <div className="mb-12 space-y-4 border-l-2 border-red-900/40 pl-6 py-2">
+                <p className="text-zinc-500 text-sm leading-relaxed max-w-2xl italic">
+                  "We live in a world where privacy seems non-existent. Fight back. I'm 100% for PRIVACY online. This tool is 100% private. Data is encrypted and 100% deleted once opened. I don't log IPs."
+                </p>
+                <p className="text-red-500/80 text-xs font-bold uppercase tracking-[0.2em] leading-relaxed max-w-2xl">
+                  We are at a point where we cannot trust our governments at all. Resist their push for DIGITAL IDs and DIGITAL prisons. Privacy is your only weapon in the coming age of total surveillance.
                 </p>
               </div>
             </motion.div>
