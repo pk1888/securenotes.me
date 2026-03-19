@@ -12,14 +12,17 @@ COPY package*.json ./
 ARG CACHE_BUST=1
 RUN rm -rf node_modules package-lock.json && npm install
 
-# Ensure Vite is properly installed
-RUN npx vite --version
+# Force reinstall Vite to fix corrupted CLI
+RUN npm uninstall vite && npm install vite@latest
+
+# Verify Vite works
+RUN ./node_modules/.bin/vite --version
 
 # Copy source code
 COPY . .
 
-# Build the frontend
-RUN npx vite build
+# Build the frontend using direct path
+RUN ./node_modules/.bin/vite build
 
 # Production stage
 FROM node:20-bullseye AS production
