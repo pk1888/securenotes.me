@@ -114,7 +114,8 @@ async function startServer() {
     }
   });
 
-  app.post("/api/messages/:id", async (req, res) => {
+  // Fetch encrypted message
+  app.get("/api/messages/:id", async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -130,18 +131,23 @@ async function startServer() {
         return res.status(410).json({ error: "Message has expired" });
       }
 
-      // Return encrypted content - client will decrypt
-      res.json({ 
-        encryptedContent: message.content
-      });
-
-      // Update view count and check self-destruction
+      // Atomic: Check if this is the last view and delete immediately if so
       const newViewCount = message.view_count + 1;
-      if (newViewCount >= message.max_views) {
+      const isLastView = newViewCount >= message.max_views;
+      
+      if (isLastView) {
+        // Delete atomically before returning
         await run(db, "DELETE FROM messages WHERE id = ?", [id]);
       } else {
+        // Update view count
         await run(db, "UPDATE messages SET view_count = ? WHERE id = ?", [newViewCount, id]);
       }
+
+      // Return encrypted content - client will decrypt
+      res.json({ 
+        encryptedContent: message.content,
+        isLastView: isLastView
+      });
     } catch (err) {
       if (!isProd) console.error(err);
       res.status(500).json({ error: "Failed to retrieve message" });

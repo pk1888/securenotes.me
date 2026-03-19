@@ -153,9 +153,8 @@ export default function App() {
       
       // Fetch encrypted message (no password sent)
       const res = await fetch(`/api/messages/${viewId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
       });
 
       const data = await res.json();
