@@ -215,11 +215,6 @@ export default function App() {
     window.history.pushState({}, "", "/");
   };
 
-  useEffect(() => {
-    const randomMantra = PRIVACY_MANTRAS[Math.floor(Math.random() * PRIVACY_MANTRAS.length)];
-    setPrivacyMantra(randomMantra);
-  }, []);
-
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-300 font-mono flex flex-col selection:bg-red-900 selection:text-white">
       {/* Header */}
