@@ -494,6 +494,141 @@ export default function App() {
               </motion.div>
             )}
 
+            {status === "privacy-guide" && (
+              <motion.div
+                key="privacy-guide"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-12 pb-20"
+              >
+                <div className="space-y-4">
+                  <h2 className="text-4xl font-bold text-white tracking-tighter uppercase">The Privacy Manifesto</h2>
+                  <p className="text-zinc-500 max-w-2xl leading-relaxed">
+                    In an era of mass surveillance and data harvesting, privacy is your only defense. 
+                    Take back control of your digital life with these essential tools and practices.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* VPS Section */}
+                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">VPS: Your Private Bunker</h3>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      Don't trust big tech with your data. Rent a Virtual Private Server (VPS) from privacy-respecting providers like 
+                      <span className="text-zinc-300"> Mullvad</span>, <span className="text-zinc-300">Njalla</span>, or <span className="text-zinc-300">OrangeWebsite</span>. 
+                      Host your own services and stay off the grid.
+                    </p>
+                  </div>
+
+                  {/* VPN Section */}
+                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">VPN: Encrypt Your Traffic</h3>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      A VPN is essential for hiding your IP and encrypting your traffic. Avoid free VPNs—they are the product. 
+                      Use <span className="text-zinc-300">Mullvad VPN</span> or <span className="text-zinc-300">IVPN</span>. 
+                      They don't require emails and accept crypto/cash.
+                    </p>
+                  </div>
+
+                  {/* Adblockers Section */}
+                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Adblockers: Kill the Trackers</h3>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      Ads are tracking beacons. Use <span className="text-zinc-300">uBlock Origin</span> on your browser. 
+                      For network-wide protection, set up a <span className="text-zinc-300">Pi-hole</span> or <span className="text-zinc-300">AdGuard Home</span> on your VPS.
+                    </p>
+                  </div>
+
+                  {/* Self-Hosting Section */}
+                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Self-Host Everything</h3>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      Replace cloud services with self-hosted alternatives. Use <span className="text-zinc-300">Nextcloud</span> for files, 
+                      <span className="text-zinc-300">Vaultwarden</span> for passwords, and <span className="text-zinc-300">Matrix</span> for chat. 
+                      Your data, your rules.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-red-950/10 border border-red-900/30 rounded-2xl text-center space-y-6">
+                  <h3 className="text-2xl font-bold text-white uppercase tracking-tighter">Ready to fight back?</h3>
+                  <p className="text-zinc-400 max-w-xl mx-auto italic">
+                    "The only way to keep a secret is to never tell it. The second best way is to encrypt it and host it yourself."
+                  </p>
+                  <button 
+                    onClick={reset}
+                    className="px-8 py-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
+                  >
+                    Return to the Shadows
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {status === "analytics-info" && (
+              <motion.div
+                key="analytics-info"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-12 pb-20"
+              >
+                <div className="space-y-4">
+                  <h2 className="text-4xl font-bold text-white tracking-tighter uppercase">What We See</h2>
+                  <p className="text-zinc-500 max-w-2xl leading-relaxed">
+                    Transparency is the foundation of trust. We use minimal, privacy-respecting analytics to understand site traffic without compromising your identity.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Zero IP Collection</h3>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      We <span className="text-red-500 font-bold">DO NOT</span> collect, store, or even see your IP address. Your location is only known at a country level, and your identity remains completely anonymous.
+                    </p>
+                  </div>
+
+                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Minimal Analytics</h3>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      We track only essential metrics to improve the service: page visits, browser types, and basic geographic distribution. No personal data is ever collected.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-6">
+                  <h3 className="text-xl font-bold text-white uppercase tracking-tight">The Data We Monitor</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {[
+                      "Top Referrers",
+                      "Browsers",
+                      "Country Locations",
+                      "Screen Sizes",
+                      "Operating Systems",
+                      "Visitor Counts"
+                    ].map((item) => (
+                      <div key={item} className="flex items-center gap-3 p-3 bg-black/40 border border-zinc-800 rounded-lg text-[10px] uppercase tracking-widest text-zinc-400">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm text-zinc-500 leading-relaxed italic">
+                    Note: Infrastructure (Docker, hosting providers, reverse proxies) may still log at their level. We recommend self-hosting for complete control.
+                  </p>
+                </div>
+
+                <div className="text-center">
+                  <button 
+                    onClick={reset}
+                    className="px-8 py-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
+                  >
+                    Back to Shadows
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
             {status === "about" && (
               <motion.div
                 key="about"
