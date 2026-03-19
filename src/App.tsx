@@ -181,7 +181,6 @@ export default function App() {
           body: JSON.stringify({})
         });
 
-        const confirmData = await confirmRes.json();
         if (confirmRes.ok) {
           setViewConfirmed(true);
         } else {
