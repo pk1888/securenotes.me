@@ -31,9 +31,28 @@ const dbPath = process.env.NODE_ENV === "production"
 const db = new Database(dbPath);
 db.run(`PRAGMA KEY = "${escapedKey}"`);
 
+// Helper functions
+const run = (db: any, sql: string, params?: any[]) => {
+  return new Promise<void>((resolve, reject) => {
+    db.run(sql, params, function(err: any) {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+};
+
+const get = (db: any, sql: string, params?: any[]) => {
+  return new Promise<any>((resolve, reject) => {
+    db.get(sql, params, (err: any, row: any) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+};
+
 // Verify encryption
 try {
-  db.get("SELECT count(*) as count FROM sqlite_master");
+  await get(db, "SELECT count(*) as count FROM sqlite_master");
 } catch (err) {
   console.error("FATAL: Database encryption key is incorrect or database is corrupt");
   process.exit(1);
@@ -52,25 +71,6 @@ db.exec(`
   )
 `);
 
-// Helper functions
-const run = (db: Database, sql: string, params?: any[]) => {
-  return new Promise<void>((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
-};
-
-const get = (db: Database, sql: string, params?: any[]) => {
-  return new Promise<any>((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
-};
-
 async function startServer() {
   const app = express();
 
@@ -84,7 +84,6 @@ async function startServer() {
 
   const corsOptions = {
     origin: allowedOrigin,
-    credentials: true,
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type']
   };
@@ -133,6 +132,11 @@ async function startServer() {
     // Validate encrypted content
     if (typeof encryptedContent !== "string" || !encryptedContent.trim()) {
       return res.status(400).json({ error: "Encrypted content is required" });
+    }
+
+    // Check content length
+    if (encryptedContent.length > 2_000_000) {
+      return res.status(400).json({ error: "Encrypted content is too large" });
     }
 
     // Validate and clamp inputs
