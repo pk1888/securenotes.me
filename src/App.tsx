@@ -153,10 +153,7 @@ export default function App() {
       }
       
       // Fetch encrypted message (read-only - no deletion)
-      const res = await fetch(`/api/messages/${viewId}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" }
-      });
+      const res = await fetch(`/api/messages/${viewId}`);
 
       const data = await res.json();
 
@@ -219,23 +216,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    const mantras = [
-      "Privacy is not a crime. It is a fundamental human right.",
-      "Government overreach starts with 'just one look'. Seal your data.",
-      "Self-hosting is the only way to truly own your digital identity.",
-      "A VPN is your first line of defense in the digital underworld.",
-      "Your data is the new oil. Don't let them drill for free.",
-      "Encryption is the math that keeps us free.",
-      "VPS: Your own private bunker in the cloud. Choose wisely.",
-      "They are watching. Make sure they see nothing.",
-      "Decentralize or die. The future is private.",
-      "Keep fighting for privacy. The shadows are our sanctuary.",
-      "Resist the Digital ID. Do not become a number in their database.",
-      "Digital prisons are being built. Encryption is the key to your cell.",
-      "Trust no government. Trust only the math."
-    ];
-    
-    const randomMantra = mantras[Math.floor(Math.random() * mantras.length)];
+    const randomMantra = PRIVACY_MANTRAS[Math.floor(Math.random() * PRIVACY_MANTRAS.length)];
     setPrivacyMantra(randomMantra);
   }, []);
 
