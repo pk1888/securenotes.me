@@ -582,9 +582,9 @@ export default function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Zero IP Collection</h3>
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Application-Level Privacy</h3>
                     <p className="text-sm text-zinc-500 leading-relaxed">
-                      We <span className="text-red-500 font-bold">DO NOT</span> collect, store, or even see your IP address. Your location is only known at a country level, and your identity remains completely anonymous.
+                      The application does not intentionally log message content or routine request data. Infrastructure outside the app may still log at its own level.
                     </p>
                   </div>
 
