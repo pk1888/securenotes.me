@@ -12,17 +12,17 @@ COPY package*.json ./
 ARG CACHE_BUST=1
 RUN rm -rf node_modules package-lock.json && npm install
 
-# Force reinstall Vite to fix corrupted CLI
-RUN npm uninstall vite && npm install vite@latest
+# Install specific Vite version that works
+RUN npm install vite@5.4.10 --save-dev
 
-# Verify Vite works
-RUN ./node_modules/.bin/vite --version
+# Set Node.js module resolution
+ENV NODE_OPTIONS="--experimental-modules"
 
 # Copy source code
 COPY . .
 
-# Build the frontend using direct path
-RUN ./node_modules/.bin/vite build
+# Build using node directly with module resolution
+RUN node --experimental-modules ./node_modules/vite/bin/vite.js build
 
 # Production stage
 FROM node:20-bullseye AS production
