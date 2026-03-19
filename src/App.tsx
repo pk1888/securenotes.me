@@ -29,6 +29,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [requiresPassword, setRequiresPassword] = useState(false);
+  const [viewConfirmed, setViewConfirmed] = useState(false);
   const [privacyMantra, setPrivacyMantra] = useState("");
 
   // Handle routing on page load
@@ -181,7 +182,9 @@ export default function App() {
         });
 
         const confirmData = await confirmRes.json();
-        if (!confirmRes.ok) {
+        if (confirmRes.ok) {
+          setViewConfirmed(true);
+        } else {
           console.warn("Failed to confirm view, but message was displayed");
         }
       } catch (err) {
@@ -482,7 +485,7 @@ export default function App() {
               >
                 <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-red-500 text-xs uppercase tracking-widest">
-                  <Trash2 className="w-3 h-3" /> Destroyed from Database
+                  <Trash2 className="w-3 h-3" /> {viewConfirmed ? "Destroyed from Database" : "Message Viewed"}
                 </div>
                   <div className="text-zinc-600 text-[10px] uppercase tracking-widest">
                     Viewing message
