@@ -123,7 +123,6 @@ async function startServer() {
   
   // Apply rate limiting to API endpoints
   app.use("/api/", apiLimiter);
-  app.use("/api/messages", createLimiter);
   
   app.use(express.json({ limit: '2mb' }));
   
@@ -161,7 +160,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/messages", async (req, res) => {
+  app.post("/api/messages", createLimiter, async (req, res) => {
     const { encryptedContent, isPasswordProtected, expiresInMinutes, maxViews } = req.body;
 
     // Validate encrypted content
