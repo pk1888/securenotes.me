@@ -21,12 +21,15 @@ if (!DB_ENCRYPTION_KEY) {
   process.exit(1);
 }
 
+// Escape key for SQL safety
+const escapedKey = DB_ENCRYPTION_KEY.replace(/"/g, '""');
+
 const dbPath = process.env.NODE_ENV === "production" 
   ? "/app/data/messages.db" 
   : "messages.db";
 
 const db = new Database(dbPath);
-db.run(`PRAGMA KEY = "${DB_ENCRYPTION_KEY}"`);
+db.run(`PRAGMA KEY = "${escapedKey}"`);
 
 // Verify encryption
 try {
@@ -72,11 +75,12 @@ async function startServer() {
   const app = express();
 
   // Middleware
+  const allowedOrigin = process.env.APP_ORIGIN || true; // Allow specific origin or fall back to true for dev
   app.use(cors({
-    origin: true,
+    origin: allowedOrigin,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type']
   }));
   app.options('*', cors());
   app.use(express.json({ limit: '10mb' }));
@@ -91,6 +95,12 @@ async function startServer() {
     }
     next();
   });
+
+  // UUID validation helper
+  const isValidUUID = (id: string) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id);
+  };
 
   // Health check endpoint for Docker/container orchestration
   app.get("/health", async (req, res) => {
@@ -133,6 +143,11 @@ async function startServer() {
   app.get("/api/messages/:id", async (req, res) => {
     const { id } = req.params;
 
+    // Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: "Invalid message ID" });
+    }
+
     try {
       const message = await get(db, "SELECT * FROM messages WHERE id = ?", [id]);
 
@@ -159,6 +174,11 @@ async function startServer() {
   // Confirm view (increment or delete after successful decryption)
   app.post("/api/messages/:id/view", async (req, res) => {
     const { id } = req.params;
+
+    // Validate UUID format
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: "Invalid message ID" });
+    }
 
     try {
       // Begin transaction for atomicity
