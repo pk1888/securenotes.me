@@ -91,7 +91,7 @@ async function startServer() {
 
   app.use(cors(corsOptions));
   app.options("*", cors(corsOptions));
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '2mb' }));
   
   // Security headers
   app.use((req, res, next) => {
@@ -104,7 +104,9 @@ async function startServer() {
     );
     // No-store for message endpoints to prevent caching
     if (req.path.startsWith('/api/messages')) {
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
     }
     next();
   });
@@ -128,7 +130,8 @@ async function startServer() {
   app.post("/api/messages", async (req, res) => {
     const { encryptedContent, isPasswordProtected, expiresInMinutes, maxViews } = req.body;
 
-    if (!encryptedContent) {
+    // Validate encrypted content
+    if (typeof encryptedContent !== "string" || !encryptedContent.trim()) {
       return res.status(400).json({ error: "Encrypted content is required" });
     }
 
