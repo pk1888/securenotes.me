@@ -49,6 +49,28 @@ export default function App() {
     }
   }, []);
 
+  const PRIVACY_MANTRAS = [
+    "Privacy is not a crime. It is a fundamental human right.",
+    "Government overreach starts with 'just one look'. Seal your data.",
+    "Self-hosting is the only way to truly own your digital identity.",
+    "A VPN is your first line of defense in the digital underworld.",
+    "Your data is the new oil. Don't let them drill for free.",
+    "Encryption is the math that keeps us free.",
+    "VPS: Your own private bunker in the cloud. Choose wisely.",
+    "They are watching. Make sure they see nothing.",
+    "Decentralize or die. The future is private.",
+    "Keep fighting for privacy. The shadows are our sanctuary.",
+    "Resist the Digital ID. Do not become a number in their database.",
+    "Digital prisons are being built. Encryption is the key to your cell.",
+    "Trust no government. Trust only the math."
+  ];
+
+  useEffect(() => {
+    if (status === "viewed" || status === "idle") {
+      setPrivacyMantra(PRIVACY_MANTRAS[Math.floor(Math.random() * PRIVACY_MANTRAS.length)]);
+    }
+  }, [status]);
+
   // Generate random encryption key in browser
   const generateKey = () => {
     return CryptoJS.lib.WordArray.random(256/8).toString();
