@@ -521,7 +521,8 @@ export default function App() {
                     <p className="text-sm text-zinc-500 leading-relaxed">
                       Don't trust big tech with your data. Rent a Virtual Private Server (VPS) from privacy-respecting providers like 
                       <span className="text-zinc-300"> Hetzner</span>, <span className="text-zinc-300">RackNerd</span>, or <span className="text-zinc-300">OrangeWebsite</span>. 
-                      Host your own services and stay off the grid.
+                      Perfect for: hosting your own VPN, running Matrix chat, private email servers, file storage with Nextcloud, 
+                      password managers with Vaultwarden, personal websites, development environments, and escaping cloud surveillance.
                     </p>
                   </div>
 
@@ -556,8 +557,10 @@ export default function App() {
                     <h3 className="text-xl font-bold text-white uppercase tracking-tight">Self-Host Everything</h3>
                     <p className="text-sm text-zinc-500 leading-relaxed">
                       Replace cloud services with self-hosted alternatives. Use <span className="text-zinc-300">Nextcloud</span> for files, 
-                      <span className="text-zinc-300">Vaultwarden</span> for passwords, and <span className="text-zinc-300">Matrix</span> for chat. 
-                      Your data, your rules.
+                      <span className="text-zinc-300">Vaultwarden</span> for passwords, <span className="text-zinc-300">Matrix</span> for chat, 
+                      <span className="text-zinc-300">Mailcow</span> for email, <span className="text-zinc-300">Gitea</span> for code, 
+                      <span className="text-zinc-300">Jellyfin</span> for media, <span className="text-zinc-300">Pi-hole</span> for ad-blocking, 
+                      and <span className="text-zinc-300">Docker</span> to manage it all. Your data, your rules.
                     </p>
                   </div>
 
