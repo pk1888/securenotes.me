@@ -542,8 +542,12 @@ export default function App() {
                   <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
                     <h3 className="text-xl font-bold text-white uppercase tracking-tight">Adblockers: Kill the Trackers</h3>
                     <p className="text-sm text-zinc-500 leading-relaxed">
-                      Ads are tracking beacons. Use <span className="text-zinc-300">uBlock Origin</span> on your browser. 
-                      For network-wide protection, set up a <span className="text-zinc-300">Pi-hole</span> or <span className="text-zinc-300">AdGuard Home</span> on your VPS.
+                      Big tech companies take and take and take again - your data, your attention, your privacy. 
+                      Fight back by starving them of revenue. Use <span className="text-zinc-300">uBlock Origin</span>, <span className="text-zinc-300">AdGuard</span>, or <span className="text-zinc-300">Privacy Badger</span> on your browser. 
+                      For network-wide protection, set up <span className="text-zinc-300">Pi-hole</span>, <span className="text-zinc-300">AdGuard Home</span>, or <span className="text-zinc-300">NextDNS</span> on your VPS.
+                    </p>
+                    <p className="text-sm text-zinc-500 leading-relaxed italic">
+                      Every blocked ad is a victory for privacy. Hurt their revenue and give yourself a better, tracker-free experience.
                     </p>
                   </div>
 
