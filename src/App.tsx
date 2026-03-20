@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   Ghost,
   Key,
-  Clock
+  Clock,
+  MessageCircle
 } from "lucide-react";
 import CryptoJS from "crypto-js";
 
@@ -236,6 +237,14 @@ export default function App() {
               <span className="w-1 h-1 bg-zinc-800 rounded-full" />
               <span>Volatile</span>
             </div>
+            <a 
+              href="https://chat.securenotes.me/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-900/30 border border-zinc-800 rounded-full text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-300 transition-all"
+            >
+              <MessageCircle className="w-3 h-3" /> Matrix Chat
+            </a>
             <button 
               onClick={() => {
                 window.history.pushState({}, "", "/privacy");
