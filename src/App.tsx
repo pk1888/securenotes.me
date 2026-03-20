@@ -622,6 +622,28 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Analytics Data Section */}
+                <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-6">
+                  <h3 className="text-xl font-bold text-white uppercase tracking-tight">Analytics We Monitor</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {[
+                      "Top Referrers",
+                      "Browsers",
+                      "Country Locations",
+                      "Screen Sizes",
+                      "Operating Systems",
+                      "Visitor Counts"
+                    ].map((item) => (
+                      <div key={item} className="flex items-center gap-3 p-3 bg-black/40 border border-zinc-800 rounded-lg text-[10px] uppercase tracking-widest text-zinc-400">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm text-zinc-500 leading-relaxed italic">
+                    We track only essential metrics to understand site traffic without compromising your identity. No personal data or message content is collected.
+                  </p>
+                </div>
+
                 {/* Matrix Recommendation */}
                 <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
                   <h3 className="text-xl font-bold text-white uppercase tracking-tight">Matrix: Secure Chat</h3>
