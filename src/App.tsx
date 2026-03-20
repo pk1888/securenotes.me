@@ -606,39 +606,20 @@ export default function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Application-Level Privacy</h3>
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">How Secure Notes Works</h3>
                     <p className="text-sm text-zinc-500 leading-relaxed">
-                      The application does not intentionally log message content or routine request data. Infrastructure outside the app may still log at its own level.
+                      Messages are encrypted in your browser using AES-256 before upload. The server stores only encrypted content and never sees plaintext. 
+                      Messages self-destruct after viewing or expiration. Your password is never sent to the server.
                     </p>
                   </div>
 
                   <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Minimal Analytics</h3>
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Technical Architecture</h3>
                     <p className="text-sm text-zinc-500 leading-relaxed">
-                      We track only essential metrics to improve the service: page visits, browser types, and basic geographic distribution. No personal data is ever collected.
+                      Built with TypeScript, Express, and SQLCipher for encrypted storage. Two-step fetch-then-confirm flow prevents wrong password deletion. 
+                      Rate limiting, input validation, and security headers protect against abuse. Open source and self-hostable.
                     </p>
                   </div>
-                </div>
-
-                <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-6">
-                  <h3 className="text-xl font-bold text-white uppercase tracking-tight">The Data We Monitor</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {[
-                      "Top Referrers",
-                      "Browsers",
-                      "Country Locations",
-                      "Screen Sizes",
-                      "Operating Systems",
-                      "Visitor Counts"
-                    ].map((item) => (
-                      <div key={item} className="flex items-center gap-3 p-3 bg-black/40 border border-zinc-800 rounded-lg text-[10px] uppercase tracking-widest text-zinc-400">
-                        {item}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-sm text-zinc-500 leading-relaxed italic">
-                    Note: Infrastructure (Docker, hosting providers, reverse proxies) may still log at their level. We recommend self-hosting for complete control.
-                  </p>
                 </div>
 
                 {/* Matrix Recommendation */}
