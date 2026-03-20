@@ -511,7 +511,7 @@ export default function App() {
                     <h3 className="text-xl font-bold text-white uppercase tracking-tight">VPS: Your Private Bunker</h3>
                     <p className="text-sm text-zinc-500 leading-relaxed">
                       Don't trust big tech with your data. Rent a Virtual Private Server (VPS) from privacy-respecting providers like 
-                      <span className="text-zinc-300"> Mullvad</span>, <span className="text-zinc-300">Njalla</span>, or <span className="text-zinc-300">OrangeWebsite</span>. 
+                      <span className="text-zinc-300"> Hetzner</span>, <span className="text-zinc-300">RackNerd</span>, or <span className="text-zinc-300">OrangeWebsite</span>. 
                       Host your own services and stay off the grid.
                     </p>
                   </div>
