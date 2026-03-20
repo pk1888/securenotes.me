@@ -544,6 +544,15 @@ export default function App() {
                       Your data, your rules.
                     </p>
                   </div>
+
+                  {/* Matrix Recommendation */}
+                  <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Matrix: Secure Chat</h3>
+                    <p className="text-sm text-zinc-500 leading-relaxed">
+                      I recommend trying <span className="text-zinc-300">Matrix chat</span> to chat with friends - it's much safer than WhatsApp etc. 
+                      Fully self-hostable with end-to-end encryption. <a href="https://chat.securenotes.me/" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">View demo here</a>.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="p-8 bg-red-950/10 border border-red-900/30 rounded-2xl text-center space-y-6">
@@ -613,6 +622,15 @@ export default function App() {
                   </p>
                 </div>
 
+                {/* Matrix Recommendation */}
+                <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                  <h3 className="text-xl font-bold text-white uppercase tracking-tight">Matrix: Secure Chat</h3>
+                  <p className="text-sm text-zinc-500 leading-relaxed">
+                    I recommend trying <span className="text-zinc-300">Matrix chat</span> to chat with friends - it's much safer than WhatsApp etc. 
+                    Fully self-hostable with end-to-end encryption. <a href="https://chat.securenotes.me/" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">View demo here</a>.
+                  </p>
+                </div>
+
                 <div className="text-center">
                   <button 
                     onClick={reset}
@@ -677,6 +695,17 @@ export default function App() {
                     </div>
                     <p className="text-zinc-400 text-sm leading-relaxed">
                       Add an extra layer of security with a password. Keys are derived locally in your browser using PBKDF2.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">💬</span>
+                      <h3 className="text-xl font-bold text-white">Matrix Chat</h3>
+                    </div>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      I recommend trying <span className="text-zinc-300">Matrix chat</span> to chat with friends - it's much safer than WhatsApp etc. 
+                      Fully self-hostable with end-to-end encryption. <a href="https://chat.securenotes.me/" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">View demo here</a>.
                     </p>
                   </div>
                 </div>
