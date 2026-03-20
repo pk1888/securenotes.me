@@ -530,8 +530,11 @@ export default function App() {
                     <h3 className="text-xl font-bold text-white uppercase tracking-tight">VPN: Encrypt Your Traffic</h3>
                     <p className="text-sm text-zinc-500 leading-relaxed">
                       A VPN is essential for hiding your IP and encrypting your traffic. Avoid free VPNs—they are the product. 
-                      Use <span className="text-zinc-300">Mullvad VPN</span> or <span className="text-zinc-300">IVPN</span>. 
+                      Use <span className="text-zinc-300">Mullvad VPN</span>, <span className="text-zinc-300">IVPN</span>, <span className="text-zinc-300">Surfshark</span>, or <span className="text-zinc-300">Proton VPN</span>. 
                       They don't require emails and accept crypto/cash.
+                    </p>
+                    <p className="text-sm text-zinc-500 leading-relaxed italic">
+                      Better yet: <span className="text-zinc-300">self-host your own VPN</span> using WireGuard or OpenVPN on your VPS for complete control.
                     </p>
                   </div>
 
