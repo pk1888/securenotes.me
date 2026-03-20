@@ -598,9 +598,9 @@ export default function App() {
                 className="space-y-12 pb-20"
               >
                 <div className="space-y-4">
-                  <h2 className="text-4xl font-bold text-white tracking-tighter uppercase">What We See</h2>
+                  <h2 className="text-4xl font-bold text-white tracking-tighter uppercase">Technical Details</h2>
                   <p className="text-zinc-500 max-w-2xl leading-relaxed">
-                    Transparency is the foundation of trust. We use minimal, privacy-respecting analytics to understand site traffic without compromising your identity.
+                    Learn how Secure Notes protects your privacy with client-side encryption and secure architecture.
                   </p>
                 </div>
 
