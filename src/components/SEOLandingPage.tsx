@@ -22,11 +22,10 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
   faqs,
   ctaText
 }) => {
-  // Note creation state (reuse from main app)
+  // Note creation state (EXACT same as main app)
   const [content, setContent] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [expiresIn, setExpiresIn] = React.useState(60);
-  const [maxViews, setMaxViews] = React.useState(1);
   const [isCreating, setIsCreating] = React.useState(false);
   const [created, setCreated] = React.useState(false);
   const [resultId, setResultId] = React.useState("");
@@ -41,7 +40,21 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
     }
   }, [title, metaDescription]);
 
-  const createNote = async () => {
+  // Generate random encryption key in browser
+  const generateKey = () => {
+    return CryptoJS.lib.WordArray.random(256/8).toString();
+  };
+
+  // Derive key from password using PBKDF2 (EXACT same as main app)
+  const deriveKeyFromPassword = (password: string, salt: string) => {
+    return CryptoJS.PBKDF2(password, salt, {
+      keySize: 256/32,
+      iterations: 10000
+    }).toString();
+  };
+
+  // Create message function (EXACT same as main app)
+  const createMessage = async () => {
     if (!content.trim()) {
       setError("Please enter a message");
       return;
@@ -51,37 +64,38 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
     setError("");
 
     try {
-      // Generate encryption key
-      const encryptionKey = CryptoJS.lib.WordArray.random(256/8).toString();
+      // Generate encryption key and salt in browser
+      const salt = generateKey();
+      const encryptionKey = password ? deriveKeyFromPassword(password, salt) : generateKey();
       
-      // Encrypt content
+      // Encrypt content in browser
       const encryptedContent = CryptoJS.AES.encrypt(content, encryptionKey).toString();
-      const passwordHash = password ? CryptoJS.SHA256(password).toString() : null;
       
-      // Create note
+      // Send already-encrypted content to server (no password hash)
       const createRes = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           encryptedContent, 
-          passwordHash, 
-          expiresInMinutes: expiresIn, 
-          maxViews 
+          isPasswordProtected: !!password,
+          expiresInMinutes: expiresIn
         }),
       });
 
-      if (!createRes.ok) throw new Error("Failed to create note");
+      if (!createRes.ok) throw new Error("Failed to seal message");
 
       const data = await createRes.json();
-      const keyFragment = password ? `${data.salt}:${passwordHash}` : encryptionKey;
-      const fullUrl = `${window.location.origin}/view/${data.id}#${keyFragment}`;
       
-      setResultId(fullUrl);
+      // Include key/salt in URL fragment with prefix (never sent to server)
+      const keyFragment = password ? `p:${salt}` : `k:${encryptionKey}`;
+      const url = `${window.location.origin}/view/${data.id}#${keyFragment}`;
+      
+      setResultId(url);
       setCreated(true);
       setContent("");
       setPassword("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create note");
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setIsCreating(false);
     }
@@ -103,7 +117,6 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
     setContent("");
     setPassword("");
     setExpiresIn(60);
-    setMaxViews(1);
     setError("");
   };
 
@@ -183,7 +196,7 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
             </div>
           </motion.div>
 
-          {/* Note Creation Tool */}
+          {/* Note Creation Tool - EXACT same as main app */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -195,15 +208,29 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
                   <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
                     <Lock className="w-3 h-3" /> Your Private Note
                   </label>
-                  <textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="Type your private message here..."
-                    className="w-full h-32 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-red-900/50 transition-all resize-none"
-                  />
+                  <div className="relative group p-[1px] rounded-xl overflow-hidden">
+                    {/* Border Beam Animation */}
+                    <motion.div
+                      animate={{
+                        rotate: [0, 360],
+                      }}
+                      transition={{
+                        duration: 10,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
+                      className="absolute inset-0 bg-gradient-to-r from-red-600 via-zinc-600 to-red-600 opacity-20"
+                    />
+                    <textarea
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="Type your private message here..."
+                      className="relative w-full h-32 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-red-900/50 transition-all resize-none"
+                    />
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
                       <Clock className="w-3 h-3" /> Expires In
@@ -218,22 +245,6 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
                       <option value={360}>6 hours</option>
                       <option value={1440}>24 hours</option>
                       <option value={10080}>7 days</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                      <Eye className="w-3 h-3" /> Max Views
-                    </label>
-                    <select
-                      value={maxViews}
-                      onChange={(e) => setMaxViews(Number(e.target.value))}
-                      className="w-full p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-300 focus:outline-none focus:border-red-900/50 transition-all"
-                    >
-                      <option value={1}>1 view</option>
-                      <option value={2}>2 views</option>
-                      <option value={3}>3 views</option>
-                      <option value={5}>5 views</option>
                     </select>
                   </div>
 
@@ -258,7 +269,7 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
                 )}
 
                 <button
-                  onClick={createNote}
+                  onClick={createMessage}
                   disabled={isCreating || !content.trim()}
                   className="w-full p-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
