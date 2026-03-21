@@ -103,6 +103,11 @@ const AppContent: React.FC = () => {
     }).toString();
   };
 
+  // Generate random encryption key in browser
+  const generateKey = () => {
+    return CryptoJS.lib.WordArray.random(256/8).toString();
+  };
+
   const createMessage = async () => {
     if (!content.trim()) {
       setError("Please enter a message");
@@ -113,18 +118,20 @@ const AppContent: React.FC = () => {
     setError("");
 
     try {
-      // Encrypt content in browser
-      const encryptionKey = CryptoJS.lib.WordArray.random(256/8).toString();
-      const encryptedContent = CryptoJS.AES.encrypt(content, encryptionKey).toString();
-      const passwordHash = password ? CryptoJS.SHA256(password).toString() : null;
+      // Generate encryption key and salt in browser
+      const salt = generateKey();
+      const encryptionKey = password ? deriveKeyFromPassword(password, salt) : generateKey();
       
-      // Send already-encrypted content to server
+      // Encrypt content in browser
+      const encryptedContent = CryptoJS.AES.encrypt(content, encryptionKey).toString();
+      
+      // Send already-encrypted content to server (no password hash)
       const createRes = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           encryptedContent, 
-          passwordHash, 
+          isPasswordProtected: !!password,
           expiresInMinutes: expiresIn, 
           maxViews 
         }),
@@ -134,63 +141,57 @@ const AppContent: React.FC = () => {
 
       const data = await createRes.json();
       
-      // Include key/salt in URL fragment (never sent to server)
-      const keyFragment = password ? `${data.salt}:${passwordHash}` : encryptionKey;
+      // Include key/salt in URL fragment with prefix (never sent to server)
+      const keyFragment = password ? `p:${salt}` : `k:${encryptionKey}`;
       const url = `${window.location.origin}/view/${data.id}#${keyFragment}`;
-      
       setResultId(url);
       setStatus("created");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create message");
+    } catch (err: any) {
+      setError(err.message);
       setStatus("error");
     }
   };
 
-  const fetchMessage = async () => {
-    setStatus("decrypting");
+  const fetchMessage = useCallback(async (pass?: string) => {
     setError("");
-
+    setStatus("decrypting");
     try {
+      // Extract key from URL fragment
       const fragment = window.location.hash.slice(1);
       if (!fragment) throw new Error("Invalid message link");
-
+      
       let encryptionKey: string;
       
-      if (fragment.includes(':')) {
-        // Password-protected message: salt:hash
-        const [salt, storedHash] = fragment.split(':');
-        const inputPassword = password;
+      // Check fragment prefix to determine mode
+      if (fragment.startsWith("k:")) {
+        // Direct key (no password)
+        encryptionKey = fragment.slice(2);
+      } else if (fragment.startsWith("p:")) {
+        // Password-protected mode
+        const salt = fragment.slice(2);
+        const inputPassword = pass || password;
         if (!inputPassword) {
           setRequiresPassword(true);
           setStatus("viewing");
           return;
         }
-        // Verify password hash
-        const inputPasswordHash = CryptoJS.SHA256(inputPassword).toString();
-        if (inputPasswordHash !== storedHash) {
-          throw new Error("Incorrect password");
-        }
-        // Derive key from password
+        // Derive key from password and salt
         encryptionKey = deriveKeyFromPassword(inputPassword, salt);
       } else {
-        // No password: direct key
-        encryptionKey = fragment;
+        throw new Error("Invalid message link format");
       }
       
-      // Fetch encrypted message
-      const res = await fetch(`/api/messages/${viewId}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
+      // Fetch encrypted message (read-only - no deletion)
+      const res = await fetch(`/api/messages/${viewId}`);
+      
       const data = await res.json();
-
+      
       if (res.status === 401 && data.requiresPassword) {
         setRequiresPassword(true);
         setStatus("viewing");
         return;
       }
-
+      
       if (!res.ok) throw new Error(data.error || "Failed to fetch message");
 
       // Decrypt content
@@ -203,11 +204,11 @@ const AppContent: React.FC = () => {
 
       setViewedContent(decryptedContent);
       setStatus("viewed");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch message");
+    } catch (err: any) {
+      setError(err.message);
       setStatus("error");
     }
-  };
+  }, [viewId, password, deriveKeyFromPassword]);
 
   const confirmView = async () => {
     if (viewConfirmed) return;
@@ -508,7 +509,7 @@ const AppContent: React.FC = () => {
                       />
                       
                       <button
-                        onClick={fetchMessage}
+                        onClick={() => fetchMessage()}
                         disabled={!password.trim() || status === "decrypting"}
                         className="w-full p-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
