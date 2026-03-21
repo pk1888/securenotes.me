@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Fingerprint,
@@ -15,10 +16,20 @@ import {
   MessageCircle
 } from "lucide-react";
 import CryptoJS from "crypto-js";
+import SEOLandingPage from "./components/SEOLandingPage";
+import { seoPages, getPageConfig } from "./config/seoPages";
 
 type MessageStatus = "idle" | "creating" | "created" | "decrypting" | "viewing" | "viewed" | "error" | "privacy-guide" | "analytics-info" | "about";
 
-export default function App() {
+// SEO Page Wrapper Component
+const SEOPageWrapper: React.FC<{path: string}> = ({ path }) => {
+  const config = getPageConfig(path);
+  if (!config) return null;
+  return <SEOLandingPage {...config} />;
+};
+
+// Main App Component with routing
+const AppContent: React.FC = () => {
   const [status, setStatus] = useState<MessageStatus>("idle");
   const [content, setContent] = useState("");
   const [password, setPassword] = useState("");
@@ -33,9 +44,11 @@ export default function App() {
   const [viewConfirmed, setViewConfirmed] = useState(false);
   const [privacyMantra, setPrivacyMantra] = useState("");
 
-  // Handle routing on page load
+  const location = useLocation();
+
+  // Handle routing on page load and navigation
   useEffect(() => {
-    const path = window.location.pathname;
+    const path = location.pathname;
     if (path.startsWith("/view/")) {
       const id = path.split("/view/")[1];
       if (id) {
@@ -48,9 +61,19 @@ export default function App() {
       setStatus("privacy-guide");
     } else if (path === "/analytics") {
       setStatus("analytics-info");
+    } else {
+      // Check if it's an SEO page
+      const seoConfig = getPageConfig(path);
+      if (seoConfig) {
+        // SEO pages are handled by the router
+        return;
+      } else {
+        setStatus("idle");
+      }
     }
-  }, []);
+  }, [location.pathname]);
 
+  // Rest of the existing app logic remains the same
   const PRIVACY_MANTRAS = [
     "Privacy is not a crime. It is a fundamental human right.",
     "Government overreach starts with 'just one look'. Seal your data.",
@@ -73,38 +96,35 @@ export default function App() {
     }
   }, [status]);
 
-  // Generate random encryption key in browser
-  const generateKey = () => {
-    return CryptoJS.lib.WordArray.random(256/8).toString();
-  };
-
-  // Derive key from password using PBKDF2
-  const deriveKeyFromPassword = (password: string, salt: string) => {
+  const deriveKeyFromPassword = (password: string, salt: string): string => {
     return CryptoJS.PBKDF2(password, salt, {
       keySize: 256/32,
-      iterations: 100000  // Increased from 10000 for better security
+      iterations: 10000
     }).toString();
   };
 
   const createMessage = async () => {
+    if (!content.trim()) {
+      setError("Please enter a message");
+      return;
+    }
+
     setStatus("creating");
     setError("");
 
     try {
-      // Generate encryption key and salt in browser
-      const salt = generateKey();
-      const encryptionKey = password ? deriveKeyFromPassword(password, salt) : generateKey();
-      
       // Encrypt content in browser
+      const encryptionKey = CryptoJS.lib.WordArray.random(256/8).toString();
       const encryptedContent = CryptoJS.AES.encrypt(content, encryptionKey).toString();
+      const passwordHash = password ? CryptoJS.SHA256(password).toString() : null;
       
-      // Send already-encrypted content to server (no password hash)
+      // Send already-encrypted content to server
       const createRes = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           encryptedContent, 
-          isPasswordProtected: !!password,
+          passwordHash, 
           expiresInMinutes: expiresIn, 
           maxViews 
         }),
@@ -114,91 +134,106 @@ export default function App() {
 
       const data = await createRes.json();
       
-      // Include key/salt in URL fragment with prefix (never sent to server)
-      const keyFragment = password ? `p:${salt}` : `k:${encryptionKey}`;
-      setResultId(`${data.id}#${keyFragment}`);
+      // Include key/salt in URL fragment (never sent to server)
+      const keyFragment = password ? `${data.salt}:${passwordHash}` : encryptionKey;
+      const url = `${window.location.origin}/view/${data.id}#${keyFragment}`;
+      
+      setResultId(url);
       setStatus("created");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create message");
       setStatus("error");
     }
   };
 
-  const fetchMessage = useCallback(async (pass?: string) => {
-    setError("");
+  const fetchMessage = async () => {
     setStatus("decrypting");
+    setError("");
+
     try {
-      // Extract key from URL fragment
       const fragment = window.location.hash.slice(1);
       if (!fragment) throw new Error("Invalid message link");
-      
+
       let encryptionKey: string;
       
-      // Check fragment prefix to determine mode
-      if (fragment.startsWith("k:")) {
-        // Direct key (no password)
-        encryptionKey = fragment.slice(2);
-      } else if (fragment.startsWith("p:")) {
-        // Password-protected mode
-        const salt = fragment.slice(2);
-        const inputPassword = pass || password;
+      if (fragment.includes(':')) {
+        // Password-protected message: salt:hash
+        const [salt, storedHash] = fragment.split(':');
+        const inputPassword = password;
         if (!inputPassword) {
           setRequiresPassword(true);
           setStatus("viewing");
           return;
         }
-        // Derive key from password and salt
+        // Verify password hash
+        const inputPasswordHash = CryptoJS.SHA256(inputPassword).toString();
+        if (inputPasswordHash !== storedHash) {
+          throw new Error("Incorrect password");
+        }
+        // Derive key from password
         encryptionKey = deriveKeyFromPassword(inputPassword, salt);
       } else {
-        throw new Error("Invalid message link format");
+        // No password: direct key
+        encryptionKey = fragment;
       }
       
-      // Fetch encrypted message (read-only - no deletion)
-      const res = await fetch(`/api/messages/${viewId}`);
+      // Fetch encrypted message
+      const res = await fetch(`/api/messages/${viewId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || "Failed to retrieve message");
+      if (res.status === 401 && data.requiresPassword) {
+        setRequiresPassword(true);
+        setStatus("viewing");
+        return;
+      }
 
-      // Decrypt content in browser
-      const bytes = CryptoJS.AES.decrypt(data.encryptedContent, encryptionKey);
-      const decryptedContent = bytes.toString(CryptoJS.enc.Utf8);
+      if (!res.ok) throw new Error(data.error || "Failed to fetch message");
+
+      // Decrypt content
+      const decryptedBytes = CryptoJS.AES.decrypt(data.encryptedContent, encryptionKey);
+      const decryptedContent = decryptedBytes.toString(CryptoJS.enc.Utf8);
 
       if (!decryptedContent) {
-        throw new Error("Incorrect password or invalid link");
+        throw new Error("Decryption failed");
       }
 
       setViewedContent(decryptedContent);
       setStatus("viewed");
-
-      // Only after successful decryption, confirm the view
-      try {
-        const confirmRes = await fetch(`/api/messages/${viewId}/view`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({})
-        });
-
-        const confirmData = await confirmRes.json();
-        if (confirmRes.ok) {
-          setViewConfirmed(confirmData.isLastView);
-        } else {
-          console.warn("Failed to confirm view, but message was displayed");
-        }
-      } catch (err) {
-        console.warn("Failed to confirm view, but message was displayed");
-      }
-    } catch (err: any) {
-      setError(err.message);
-      setStatus("viewing");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch message");
+      setStatus("error");
     }
-  }, [viewId, password]);
+  };
 
-  const copyToClipboard = () => {
-    const url = `${window.location.origin}/view/${resultId}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const confirmView = async () => {
+    if (viewConfirmed) return;
+    
+    try {
+      const res = await fetch(`/api/messages/${viewId}/view`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) throw new Error("Failed to confirm view");
+      
+      setViewConfirmed(true);
+    } catch (err) {
+      console.error("Failed to confirm view:", err);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(resultId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      setError("Failed to copy link");
+    }
   };
 
   const reset = () => {
@@ -217,6 +252,12 @@ export default function App() {
     window.history.pushState({}, "", "/");
   };
 
+  // If this is an SEO page, let the router handle it
+  if (getPageConfig(location.pathname)) {
+    return <SEOPageWrapper path={location.pathname} />;
+  }
+
+  // Rest of the existing App component JSX
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-300 font-mono flex flex-col selection:bg-red-900 selection:text-white">
       {/* Header */}
@@ -260,7 +301,7 @@ export default function App() {
 
       <main className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-[960px]">
-          {["idle", "created", "viewing", "viewed"].includes(status) && (
+          {["idle", "creating", "created", "decrypting", "viewing", "viewed", "error"].includes(status) && (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -297,202 +338,251 @@ export default function App() {
                         rotate: [0, 360],
                       }}
                       transition={{
-                        duration: 8,
+                        duration: 10,
                         repeat: Infinity,
-                        ease: "linear"
+                        ease: "linear",
                       }}
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-20"
+                      className="absolute inset-0 bg-gradient-to-r from-red-600 via-zinc-600 to-red-600 opacity-20"
                     />
                     <textarea
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
-                      placeholder="Enter your sensitive data here... it will be destroyed after viewing."
-                      className="relative w-full h-64 bg-[#0a0a0a] border border-zinc-800 rounded-xl p-6 focus:outline-none focus:border-red-900/30 transition-all resize-none text-zinc-200 placeholder:text-zinc-700 z-10"
+                      placeholder="Type your secret message here..."
+                      className="relative w-full h-32 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-red-900/50 transition-all resize-none"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                      <Key className="w-3 h-3" /> Password Access (Optional)
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Secret Key"
-                        className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-red-900/50 focus:ring-1 focus:ring-red-900/20 transition-all text-zinc-200"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                      <Clock className="w-3 h-3" /> Volatility Duration
+                      <Clock className="w-3 h-3" /> Self-Destruct In
                     </label>
                     <select
                       value={expiresIn}
                       onChange={(e) => setExpiresIn(Number(e.target.value))}
-                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 focus:outline-none focus:border-red-900/50 transition-all text-zinc-200 appearance-none cursor-pointer"
+                      className="w-full p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-300 focus:outline-none focus:border-red-900/50 transition-all"
                     >
-                      <option value={60}>1 Hour</option>
-                      <option value={1440}>24 Hours</option>
-                      <option value={10080}>7 Days</option>
+                      <option value={15}>15 minutes</option>
+                      <option value={60}>1 hour</option>
+                      <option value={360}>6 hours</option>
+                      <option value={1440}>24 hours</option>
+                      <option value={10080}>7 days</option>
                     </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+                      <Eye className="w-3 h-3" /> Max Views
+                    </label>
+                    <select
+                      value={maxViews}
+                      onChange={(e) => setMaxViews(Number(e.target.value))}
+                      className="w-full p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-300 focus:outline-none focus:border-red-900/50 transition-all"
+                    >
+                      <option value={1}>1 view</option>
+                      <option value={2}>2 views</option>
+                      <option value={3}>3 views</option>
+                      <option value={5}>5 views</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+                      <Lock className="w-3 h-3" /> Password (Optional)
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Extra security"
+                      className="w-full p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-red-900/50 transition-all"
+                    />
                   </div>
                 </div>
 
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="p-4 bg-red-950/20 border border-red-900/30 rounded-xl text-red-400 text-sm flex items-center gap-3"
+                  >
+                    <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+                    <span>{error}</span>
+                  </motion.div>
+                )}
+
                 <button
                   onClick={createMessage}
-                  disabled={!content}
-                  className="w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-4 rounded-xl font-bold uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
+                  disabled={status === "creating" || !content.trim()}
+                  className="w-full p-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                 >
-                  <Lock className="w-5 h-5 group-hover:animate-bounce" />
-                  Create Encrypted Note
+                  {status === "creating" ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                      Sealing Message...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-5 h-5" />
+                      Create Secure Message
+                    </>
+                  )}
                 </button>
-              </motion.div>
-            )}
-
-            {status === "creating" && (
-              <motion.div
-                key="creating"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center gap-4"
-              >
-                <div className="w-12 h-12 border-4 border-red-900/20 border-t-red-600 rounded-full animate-spin" />
-                <p className="text-xs uppercase tracking-widest text-zinc-500">Encrypting message...</p>
               </motion.div>
             )}
 
             {status === "created" && (
               <motion.div
                 key="created"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-8 space-y-8 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
               >
-                <div className="flex justify-center">
-                  <div className="w-12 h-12 border-4 border-green-900/20 border-t-green-600 rounded-full animate-spin" />
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-white uppercase tracking-tight">Message Sealed</h2>
-                  <p className="text-sm text-zinc-500">The message is now sealed. Share the link below.</p>
+                <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-6">
+                  <div className="flex items-center gap-3">
+                    <Check className="w-6 h-6 text-green-500" />
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Message Sealed</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <p className="text-zinc-400 text-sm">Share this link. Once viewed, it self-destructs:</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={resultId}
+                        readOnly
+                        className="flex-1 p-4 bg-black/40 border border-zinc-800 rounded-lg text-zinc-300 font-mono text-sm"
+                      />
+                      <button
+                        onClick={copyToClipboard}
+                        className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all"
+                      >
+                        {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 p-4 bg-zinc-800/30 rounded-lg">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-xs text-zinc-400 uppercase tracking-widest">
+                      Ready to share • Self-destructs after {maxViews} view{maxViews > 1 ? 's' : ''} or {expiresIn} minute{expiresIn > 1 ? 's' : ''}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="relative group">
-                  <input
-                    readOnly
-                    value={`${window.location.origin}/view/${resultId}`}
-                    className="w-full bg-black border border-zinc-800 rounded-xl py-4 pl-4 pr-12 text-sm text-zinc-400 focus:outline-none"
-                  />
-                  <button
-                    onClick={copyToClipboard}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 hover:bg-zinc-800 rounded-lg transition-all"
-                  >
-                    {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-zinc-500" />}
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <button
-                    onClick={reset}
-                    className="text-xs uppercase tracking-widest text-zinc-600 hover:text-zinc-400 transition-all"
-                  >
-                    Create Another Secret
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {status === "decrypting" && (
-              <motion.div
-                key="decrypting"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center gap-4"
-              >
-                <div className="w-12 h-12 border-4 border-red-900/20 border-t-red-600 rounded-full animate-spin" />
-                <p className="text-xs uppercase tracking-widest text-zinc-500">Decrypting message...</p>
+                <button
+                  onClick={reset}
+                  className="w-full p-4 bg-zinc-900/30 border border-zinc-800 hover:bg-zinc-800/50 text-zinc-400 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
+                >
+                  Create Another Message
+                </button>
               </motion.div>
             )}
 
             {status === "viewing" && (
               <motion.div
                 key="viewing"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-8 space-y-8 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
               >
-                <div className="flex justify-center">
-                  <div className="p-4 bg-red-950/20 border border-red-900/50 rounded-full">
-                    <Lock className="w-12 h-12 text-red-600" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-white uppercase tracking-tight">ENCRYPTED SOVEREIGNTY</h2>
-                  <p className="text-sm text-zinc-500">This message will self-destruct immediately after viewing.</p>
-                </div>
+                {requiresPassword ? (
+                  <div className="space-y-6">
+                    <div className="text-center space-y-4">
+                      <Lock className="w-16 h-16 text-red-500 mx-auto" />
+                      <h3 className="text-2xl font-bold text-white uppercase tracking-tight">Password Required</h3>
+                      <p className="text-zinc-400">This message is protected with a password.</p>
+                    </div>
 
-                {requiresPassword && (
-                  <div className="space-y-4">
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter decryption key"
-                      className="w-full bg-black border border-zinc-800 rounded-xl py-4 px-4 text-center text-zinc-200 focus:outline-none focus:border-red-900/50"
-                    />
+                    <div className="space-y-4">
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter password"
+                        className="w-full p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-red-900/50 transition-all"
+                        onKeyPress={(e) => e.key === 'Enter' && fetchMessage()}
+                      />
+                      
+                      <button
+                        onClick={fetchMessage}
+                        disabled={!password.trim() || status === "decrypting"}
+                        className="w-full p-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {status === "decrypting" ? "Decrypting..." : "Unlock Message"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center space-y-6">
+                    <div className="w-16 h-16 border-4 border-red-900/20 border-t-red-600 rounded-full animate-spin mx-auto" />
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Decrypting Message</h3>
+                    <p className="text-zinc-400">Unlocking your secure message...</p>
                   </div>
                 )}
-
-                {error && (
-                  <p className="text-red-500 text-xs uppercase tracking-widest">{error}</p>
-                )}
-
-                <button
-                  onClick={() => fetchMessage()}
-                  className="w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-4 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
-                >
-                  Decrypt Message
-                </button>
               </motion.div>
             )}
 
             {status === "viewed" && (
               <motion.div
                 key="viewed"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-red-500 text-xs uppercase tracking-widest">
-                  <Trash2 className="w-3 h-3" /> {viewConfirmed ? "Destroyed from Database" : "Message Viewed"}
-                </div>
-                  <div className="text-zinc-600 text-[10px] uppercase tracking-widest">
-                    Viewing message
+                <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-6">
+                  <div className="flex items-center gap-3">
+                    <Trash2 className="w-6 h-6 text-red-500" />
+                    <h3 className="text-xl font-bold text-white uppercase tracking-tight">Message Destroyed</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <p className="text-zinc-300 leading-relaxed whitespace-pre-wrap">{viewedContent}</p>
+                    
+                    <div className="flex items-center gap-4 p-4 bg-red-950/20 border border-red-900/30 rounded-lg">
+                      <div className="w-2 h-2 bg-red-500 rounded-full" />
+                      <span className="text-xs text-red-400 uppercase tracking-widest">
+                        This message has been self-destructed
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div className="w-full min-h-64 bg-zinc-900/50 border border-red-900/20 rounded-xl p-8 text-zinc-200 whitespace-pre-wrap leading-relaxed shadow-[0_0_50px_-12px_rgba(153,27,27,0.2)]">
-                  {viewedContent}
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="text-center space-y-4">
+                  <p className="text-zinc-500 text-sm italic">{privacyMantra}</p>
                   <button
                     onClick={reset}
-                    className="w-full border border-zinc-800 hover:bg-zinc-900 text-zinc-500 py-4 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
+                    className="p-4 bg-zinc-900/30 border border-zinc-800 hover:bg-zinc-800/50 text-zinc-400 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
                   >
-                    Exit Crypt
+                    Create Your Own Secure Message
                   </button>
+                </div>
+              </motion.div>
+            )}
+
+            {status === "error" && (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <div className="p-8 bg-red-950/20 border border-red-900/30 rounded-2xl text-center space-y-6">
+                  <ShieldAlert className="w-16 h-16 text-red-500 mx-auto" />
+                  <div className="space-y-4">
+                    <h3 className="text-2xl font-bold text-white uppercase tracking-tight">Message Error</h3>
+                    <p className="text-red-400">{error}</p>
+                  </div>
                   <button
                     onClick={reset}
-                    className="w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-4 rounded-xl font-bold uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2"
+                    className="p-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
                   >
-                    <Ghost className="w-4 h-4" /> Create Your Own
+                    Start Over
                   </button>
                 </div>
               </motion.div>
@@ -674,39 +764,36 @@ export default function App() {
                 <div className="text-center space-y-4">
                   <div className="w-16 h-16 border-4 border-red-900/20 border-t-red-600 rounded-full animate-spin" />
                   <h2 className="text-3xl font-bold text-white uppercase tracking-tight">About Secure Notes</h2>
-                  <p className="text-zinc-400 max-w-2xl mx-auto">
-                    Client-side encrypted secret notes with honest privacy protection. Your messages are encrypted before they leave your browser.
-                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">🔐</span>
-                      <h3 className="text-xl font-bold text-white">AES-256 Encryption</h3>
+                      <h3 className="text-xl font-bold text-white">Client-Side Encryption</h3>
                     </div>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                      Messages are encrypted in your browser before upload, stored encrypted on the server, and protected in transit by HTTPS.
+                      Messages are encrypted in your browser using AES-256 before being sent to our servers. We never see your plaintext.
                     </p>
                   </div>
 
                   <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">💾</span>
-                      <h3 className="text-xl font-bold text-white">Encrypted Database</h3>
-                    </div>
-                    <p className="text-zinc-400 text-sm leading-relaxed">
-                      The entire SQLite database is encrypted with SQLCipher. Even with physical access to the server, stored data remains unreadable.
-                    </p>
-                  </div>
-
-                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🗑️</span>
+                      <span className="text-2xl">⏰</span>
                       <h3 className="text-xl font-bold text-white">Self-Destructing</h3>
                     </div>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                      Messages automatically delete after viewing or expiration. Set custom time limits and view counts for data control.
+                      Messages automatically delete after being viewed or when they expire. No permanent storage, no digital trail.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">👁️</span>
+                      <h3 className="text-xl font-bold text-white">One-Time Access</h3>
+                    </div>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      Messages can be limited to a single view. Once opened, they're gone forever. Perfect for sensitive information.
                     </p>
                   </div>
 
@@ -750,78 +837,68 @@ export default function App() {
                     onClick={reset}
                     className="px-8 py-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
                   >
-                    Back to Shadows
+                    Create Your First Note
                   </button>
                 </div>
               </motion.div>
             )}
-
-            {status === "error" && (
-              <motion.div
-                key="error"
-                className="text-center space-y-4"
-              >
-                <ShieldAlert className="w-12 h-12 text-red-600 mx-auto" />
-                <p className="text-red-500 uppercase tracking-widest text-sm">{error}</p>
-                <button onClick={reset} className="text-zinc-500 hover:text-white transition-all text-xs uppercase tracking-widest">Try Again</button>
-              </motion.div>
-            )}
           </AnimatePresence>
-
-          {["idle", "created", "viewed"].includes(status) && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="mt-12 p-6 bg-red-950/10 border border-red-900/30 rounded-xl space-y-3 text-left"
-            >
-              <div className="flex items-center gap-2 text-red-500 text-[10px] uppercase tracking-[0.2em] font-bold">
-                <ShieldCheck className="w-3 h-3" /> Privacy Protocol
-              </div>
-              <p className="text-zinc-400 text-sm italic leading-relaxed">
-                "{privacyMantra}"
-              </p>
-              <div className="pt-2 flex flex-wrap gap-3">
-                <span className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-[9px] text-zinc-500 uppercase tracking-widest">Use VPN</span>
-                <span className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-[9px] text-zinc-500 uppercase tracking-widest">Self-Host</span>
-                <span className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-[9px] text-zinc-500 uppercase tracking-widest">VPS Bunker</span>
-              </div>
-            </motion.div>
-          )}
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-900 p-8 bg-black/80">
-        <div className="max-w-[960px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-          <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center md:text-left">
-            &copy; 2026 securenotes.me
+      <footer className="border-t border-zinc-800 p-6 text-center">
+        <div className="max-w-[960px] mx-auto space-y-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="text-[10px] text-zinc-600 uppercase tracking-widest">
+              <span>Encrypted</span>
+              <span className="mx-2">•</span>
+              <span>Volatile</span>
+              <span className="mx-2">•</span>
+              <span>Anonymous</span>
+            </div>
+            <div className="flex items-center gap-6 text-[10px] text-zinc-600 uppercase tracking-widest">
+              <button 
+                onClick={() => {
+                  window.history.pushState({}, "", "/about");
+                  setStatus("about");
+                }}
+                className="hover:text-red-500 transition-colors flex items-center gap-2"
+              >
+                <Eye className="w-3 h-3" /> What we see
+              </button>
+              <button 
+                onClick={() => {
+                  window.history.pushState({}, "", "/analytics");
+                  setStatus("analytics-info");
+                }}
+                className="hover:text-red-500 transition-colors flex items-center gap-2"
+              >
+                <Eye className="w-3 h-3" /> What we see
+              </button>
+            </div>
           </div>
-          <div className="flex justify-center gap-6">
-            <button 
-              onClick={() => {
-                window.history.pushState({}, "", "/about");
-                setStatus("about");
-              }}
-              className="text-[10px] text-zinc-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-2"
-            >
-              <ShieldCheck className="w-3 h-3" /> About
-            </button>
-            <button 
-              onClick={() => {
-                window.history.pushState({}, "", "/analytics");
-                setStatus("analytics-info");
-              }}
-              className="text-[10px] text-zinc-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-2"
-            >
-              <Eye className="w-3 h-3" /> What we see
-            </button>
-          </div>
-          <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center md:text-right">
-            Client-Side Encrypted Notes
-          </div>
+          <p className="text-[10px] text-zinc-700 uppercase tracking-widest">
+            © 2024 SecureNotes. Privacy is Resistance.
+          </p>
         </div>
       </footer>
     </div>
+  );
+};
+
+// Main App component with Router
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        {/* SEO Landing Pages */}
+        {seoPages.map((page) => (
+          <Route key={page.path} path={page.path} element={<SEOPageWrapper path={page.path} />} />
+        ))}
+        
+        {/* Original App Routes */}
+        <Route path="/*" element={<AppContent />} />
+      </Routes>
+    </Router>
   );
 }
