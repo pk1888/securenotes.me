@@ -2,5 +2,16 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /health
+Disallow: /view/
+
+# Allow all SEO pages and main content
+Allow: /send-private-note
+Allow: /self-destruct-note
+Allow: /temporary-note-link
+Allow: /secure-note-sharing
+Allow: /one-time-note-link
+Allow: /about
+Allow: /privacy
+Allow: /analytics
 
 Sitemap: https://securenotes.me/sitemap.xml

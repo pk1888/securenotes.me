@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Fingerprint,
@@ -11,15 +11,16 @@ import {
   ShieldAlert,
   ShieldCheck,
   Ghost,
-  Key,
-  Clock,
-  MessageCircle
+  MessageCircle,
+  FileText,
+  Github
 } from "lucide-react";
 import CryptoJS from "crypto-js";
 import SEOLandingPage from "./components/SEOLandingPage";
+import { NoteForm } from "./components/NoteForm";
 import { seoPages, getPageConfig } from "./config/seoPages";
 
-type MessageStatus = "idle" | "creating" | "created" | "decrypting" | "viewing" | "viewed" | "error" | "privacy-guide" | "analytics-info" | "about";
+type MessageStatus = "idle" | "creating" | "created" | "decrypting" | "viewing" | "viewed" | "error" | "privacy-guide" | "analytics-info" | "about" | "terms";
 
 // SEO Page Wrapper Component
 const SEOPageWrapper: React.FC<{path: string}> = ({ path }) => {
@@ -34,7 +35,7 @@ const AppContent: React.FC = () => {
   const [content, setContent] = useState("");
   const [password, setPassword] = useState("");
   const [expiresIn, setExpiresIn] = useState(60); // minutes
-  const [maxViews, setMaxViews] = useState(1);
+  const [maxViews, setMaxViews] = useState(1); // default to 1 view
   const [resultId, setResultId] = useState("");
   const [viewId, setViewId] = useState("");
   const [viewedContent, setViewedContent] = useState("");
@@ -42,13 +43,42 @@ const AppContent: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [requiresPassword, setRequiresPassword] = useState(false);
   const [viewConfirmed, setViewConfirmed] = useState(false);
-  const [privacyMantra, setPrivacyMantra] = useState("");
 
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Scroll to top when route changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   // Handle routing on page load
   useEffect(() => {
     const path = location.pathname;
+    
+    // Manage canonical URLs
+    const canonicalUrl = `${window.location.origin}${path}`;
+    let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
+    if (canonicalLink) {
+      canonicalLink.href = canonicalUrl;
+    } else {
+      canonicalLink = document.createElement('link');
+      canonicalLink.rel = 'canonical';
+      canonicalLink.href = canonicalUrl;
+      document.head.appendChild(canonicalLink);
+    }
+    
+    // Add robots meta tag
+    let robotsTag = document.querySelector('meta[name="robots"]') as HTMLMetaElement;
+    if (robotsTag) {
+      robotsTag.content = 'index, follow';
+    } else {
+      robotsTag = document.createElement('meta');
+      robotsTag.name = 'robots';
+      robotsTag.content = 'index, follow';
+      document.head.appendChild(robotsTag);
+    }
+    
     if (path.startsWith("/view/")) {
       const id = path.split("/view/")[1];
       if (id) {
@@ -61,6 +91,8 @@ const AppContent: React.FC = () => {
       setStatus("privacy-guide");
     } else if (path === "/analytics") {
       setStatus("analytics-info");
+    } else if (path === "/terms") {
+      setStatus("terms");
     } else {
       // Check if it's an SEO page
       const seoConfig = getPageConfig(path);
@@ -72,28 +104,6 @@ const AppContent: React.FC = () => {
       }
     }
   }, [location.pathname]);
-
-  const PRIVACY_MANTRAS = [
-    "Privacy is not a crime. It is a fundamental human right.",
-    "Government overreach starts with 'just one look'. Seal your data.",
-    "Self-hosting is the only way to truly own your digital identity.",
-    "A VPN is your first line of defense in the digital underworld.",
-    "Your data is the new oil. Don't let them drill for free.",
-    "Encryption is the math that keeps us free.",
-    "VPS: Your own private bunker in the cloud. Choose wisely.",
-    "They are watching. Make sure they see nothing.",
-    "Decentralize or die. The future is private.",
-    "Keep fighting for privacy. The shadows are our sanctuary.",
-    "Resist the Digital ID. Do not become a number in their database.",
-    "Digital prisons are being built. Encryption is the key to your cell.",
-    "Trust no government. Trust only the math."
-  ];
-
-  useEffect(() => {
-    if (status === "viewed" || status === "idle") {
-      setPrivacyMantra(PRIVACY_MANTRAS[Math.floor(Math.random() * PRIVACY_MANTRAS.length)]);
-    }
-  }, [status]);
 
   // Generate random encryption key in browser
   const generateKey = () => {
@@ -127,8 +137,8 @@ const AppContent: React.FC = () => {
         body: JSON.stringify({ 
           encryptedContent, 
           isPasswordProtected: !!password,
-          expiresInMinutes: expiresIn, 
-          maxViews 
+          expiresInMinutes: expiresIn,
+          maxViews: maxViews
         }),
       });
 
@@ -228,7 +238,6 @@ const AppContent: React.FC = () => {
     setContent("");
     setPassword("");
     setExpiresIn(60);
-    setMaxViews(1);
     setResultId("");
     setViewId("");
     setViewedContent("");
@@ -236,7 +245,7 @@ const AppContent: React.FC = () => {
     setCopied(false);
     setRequiresPassword(false);
     setViewConfirmed(false);
-    window.history.pushState({}, "", "/");
+    navigate("/");
   };
 
   // If this is an SEO page, let the router handle it
@@ -274,7 +283,7 @@ const AppContent: React.FC = () => {
             </a>
             <button 
               onClick={() => {
-                window.history.pushState({}, "", "/privacy");
+                navigate("/privacy");
                 setStatus("privacy-guide");
               }}
               className="flex items-center gap-2 px-4 py-2 bg-red-950/20 border border-red-900/30 rounded-full text-red-500 hover:bg-red-900/30 transition-all font-bold"
@@ -304,137 +313,75 @@ const AppContent: React.FC = () => {
             </motion.div>
           )}
 
-          <AnimatePresence mode="wait">
-            {status === "idle" && (
-              <motion.div
-                key="idle"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-6"
-              >
-                <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                    <Ghost className="w-3 h-3" /> The Secret Message
-                  </label>
-                  <div className="relative group p-[1px] rounded-xl overflow-hidden">
-                    {/* Border Beam Animation */}
-                    <motion.div
-                      animate={{
-                        rotate: [0, 360],
-                      }}
-                      transition={{
-                        duration: 8,
-                        repeat: Infinity,
-                        ease: "linear"
-                      }}
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-20"
-                    />
-                    <textarea
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder="Enter your sensitive data here... it will be destroyed after viewing."
-                      className="relative w-full h-64 bg-[#0a0a0a] border border-zinc-800 rounded-xl p-6 focus:outline-none focus:border-red-900/30 transition-all resize-none text-zinc-200 placeholder:text-zinc-700 z-10"
-                    />
-                  </div>
+          {/* Note Form - idle/creating/error states */}
+          {["idle", "creating", "error"].includes(status) && (
+            <NoteForm
+              content={content}
+              setContent={setContent}
+              password={password}
+              setPassword={setPassword}
+              expiresIn={expiresIn}
+              setExpiresIn={setExpiresIn}
+              maxViews={maxViews}
+              setMaxViews={setMaxViews}
+              onSubmit={createMessage}
+              isLoading={status === "creating"}
+              error={status === "error" ? error : ""}
+            />
+          )}
+
+          {/* Created state - show result */}
+          {status === "created" && (
+            <motion.div
+              key="created"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-8 space-y-8 text-center"
+            >
+              <div className="flex justify-center">
+                <div className="p-4 bg-green-950/20 border border-green-900/50 rounded-full">
+                  <Check className="w-12 h-12 text-green-500" />
                 </div>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                      <Key className="w-3 h-3" /> Password Access (Optional)
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Secret Key"
-                        className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-red-900/50 focus:ring-1 focus:ring-red-900/20 transition-all text-zinc-200"
-                      />
-                    </div>
-                  </div>
+              <div className="space-y-2">
+                <h2 className="text-xl font-bold text-white uppercase tracking-tight">
+                  Note Sealed
+                </h2>
+                <p className="text-sm text-zinc-500">
+                  Share this link. Once it's opened, it's gone.
+                </p>
+              </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                      <Clock className="w-3 h-3" /> Volatility Duration
-                    </label>
-                    <select
-                      value={expiresIn}
-                      onChange={(e) => setExpiresIn(Number(e.target.value))}
-                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 focus:outline-none focus:border-red-900/50 transition-all text-zinc-200 appearance-none cursor-pointer"
-                    >
-                      <option value={60}>1 Hour</option>
-                      <option value={1440}>24 Hours</option>
-                      <option value={10080}>7 Days</option>
-                    </select>
-                  </div>
-                </div>
-
+              <div className="relative group">
+                <input
+                  readOnly
+                  value={`${window.location.origin}/view/${resultId}`}
+                  className="w-full bg-black border border-zinc-800 rounded-xl py-4 pl-4 pr-12 text-sm text-zinc-400 focus:outline-none"
+                />
                 <button
-                  onClick={createMessage}
-                  disabled={!content}
-                  className="w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-4 rounded-xl font-bold uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
+                  onClick={copyToClipboard}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 hover:bg-zinc-800 rounded-lg transition-all"
                 >
-                  <Lock className="w-5 h-5 group-hover:animate-bounce" />
-                  Create Encrypted Note
+                  {copied ? (
+                    <Check className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <Copy className="w-5 h-5 text-zinc-500" />
+                  )}
                 </button>
-              </motion.div>
-            )}
+              </div>
 
-            {status === "creating" && (
-              <motion.div
-                key="creating"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center gap-4"
+              <button
+                onClick={reset}
+                className="text-xs uppercase tracking-widest text-zinc-600 hover:text-zinc-400 transition-all"
               >
-                <div className="w-12 h-12 border-4 border-red-900/20 border-t-red-600 rounded-full animate-spin" />
-                <p className="text-xs uppercase tracking-widest text-zinc-500">Encrypting message...</p>
-              </motion.div>
-            )}
+                Create Another Secret
+              </button>
+            </motion.div>
+          )}
 
-            {status === "created" && (
-              <motion.div
-                key="created"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-8 space-y-8 text-center"
-              >
-                <div className="flex justify-center">
-                  <div className="w-12 h-12 border-4 border-green-900/20 border-t-green-600 rounded-full animate-spin" />
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-white uppercase tracking-tight">Message Sealed</h2>
-                  <p className="text-sm text-zinc-500">The message is now sealed. Share the link below.</p>
-                </div>
-
-                <div className="relative group">
-                  <input
-                    readOnly
-                    value={`${window.location.origin}/view/${resultId}`}
-                    className="w-full bg-black border border-zinc-800 rounded-xl py-4 pl-4 pr-12 text-sm text-zinc-400 focus:outline-none"
-                  />
-                  <button
-                    onClick={copyToClipboard}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 hover:bg-zinc-800 rounded-lg transition-all"
-                  >
-                    {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-zinc-500" />}
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <button
-                    onClick={reset}
-                    className="text-xs uppercase tracking-widest text-zinc-600 hover:text-zinc-400 transition-all"
-                  >
-                    Create Another Secret
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
+          {/* Viewing/Decrypting states - route specific */}
+          <AnimatePresence mode="wait">
             {status === "decrypting" && (
               <motion.div
                 key="decrypting"
@@ -598,6 +545,72 @@ const AppContent: React.FC = () => {
                       I recommend trying <span className="text-zinc-300">Matrix chat</span> to chat with friends - it's much safer than WhatsApp etc. 
                       Fully self-hostable with end-to-end encryption. <a href="https://chat.securenotes.me/" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">View demo here</a>.
                     </p>
+                  </div>
+                </div>
+
+                {/* VPS Plans Section */}
+                <div className="p-8 bg-red-950/10 border border-red-900/30 rounded-2xl space-y-6">
+                  <h3 className="text-2xl font-bold text-white uppercase tracking-tighter">Self-Hosting VPS Options</h3>
+                  <p className="text-zinc-400 leading-relaxed">
+                    Don't trust big tech with your data. Rent a Virtual Private Server (VPS) from privacy-respecting providers like 
+                    <span className="text-zinc-300"> Hetzner</span>, <span className="text-zinc-300">RackNerd</span>, or <span className="text-zinc-300">OrangeWebsite</span>. 
+                    Perfect for: hosting your own VPN, running Matrix chat, private email servers, file storage with Nextcloud, 
+                    password managers with Vaultwarden, personal websites, development environments, and escaping cloud surveillance.
+                  </p>
+                  <p className="text-zinc-500 text-sm italic mt-2">
+                    My preferred supplier is RackNerd due to their great prices and I've had zero issues.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                    <a href="https://my.racknerd.com/aff.php?aff=18943&pid=903" target="_blank" rel="noopener noreferrer" className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-xl hover:border-red-900/50 transition-all">
+                      <div className="text-red-400 font-bold text-lg">1 GB RAM KVM VPS</div>
+                      <div className="text-zinc-500 text-sm">1x vCPU Core • 1 GB RAM • 24 GB SSD</div>
+                      <div className="text-zinc-400 text-xs mt-2">$11.29/year</div>
+                      <div className="text-zinc-500 text-xs mt-1">2 TB Bandwidth</div>
+                      <div className="text-zinc-500 text-xs">KVM Virtualization</div>
+                      <button className="mt-4 w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-2 rounded text-sm font-bold transition-all">
+                        GO →
+                      </button>
+                    </a>
+                    <a href="https://my.racknerd.com/aff.php?aff=18943&pid=904" target="_blank" rel="noopener noreferrer" className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-xl hover:border-red-900/50 transition-all">
+                      <div className="text-red-400 font-bold text-lg">2 GB RAM KVM VPS</div>
+                      <div className="text-zinc-500 text-sm">1x vCPU Core • 2 GB RAM • 40 GB SSD</div>
+                      <div className="text-zinc-400 text-xs mt-2">$18.29/year</div>
+                      <div className="text-zinc-500 text-xs mt-1">3.5 TB Bandwidth</div>
+                      <div className="text-zinc-500 text-xs">KVM Virtualization</div>
+                      <button className="mt-4 w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-2 rounded text-sm font-bold transition-all">
+                        GO →
+                      </button>
+                    </a>
+                    <a href="https://my.racknerd.com/aff.php?aff=18943&pid=905" target="_blank" rel="noopener noreferrer" className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-xl hover:border-red-900/50 transition-all">
+                      <div className="text-red-400 font-bold text-lg">3.5 GB RAM KVM VPS</div>
+                      <div className="text-zinc-500 text-sm">2x vCPU Cores • 3.5 GB RAM • 65 GB SSD</div>
+                      <div className="text-zinc-400 text-xs mt-2">$32.49/year</div>
+                      <div className="text-zinc-500 text-xs mt-1">7 TB Bandwidth</div>
+                      <div className="text-zinc-500 text-xs">KVM Virtualization</div>
+                      <button className="mt-4 w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-2 rounded text-sm font-bold transition-all">
+                        GO →
+                      </button>
+                    </a>
+                    <a href="https://my.racknerd.com/aff.php?aff=18943&pid=906" target="_blank" rel="noopener noreferrer" className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-xl hover:border-red-900/50 transition-all">
+                      <div className="text-red-400 font-bold text-lg">4 GB RAM KVM VPS</div>
+                      <div className="text-zinc-500 text-sm">3x vCPU Cores • 4 GB RAM • 105 GB SSD</div>
+                      <div className="text-zinc-400 text-xs mt-2">$43.88/year</div>
+                      <div className="text-zinc-500 text-xs mt-1">9 TB Bandwidth</div>
+                      <div className="text-zinc-500 text-xs">KVM Virtualization</div>
+                      <button className="mt-4 w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-2 rounded text-sm font-bold transition-all">
+                        GO →
+                      </button>
+                    </a>
+                    <a href="https://my.racknerd.com/aff.php?aff=18943&pid=907" target="_blank" rel="noopener noreferrer" className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-xl hover:border-red-900/50 transition-all">
+                      <div className="text-red-400 font-bold text-lg">6 GB RAM KVM VPS</div>
+                      <div className="text-zinc-500 text-sm">4x vCPU Cores • 6 GB RAM • 140 GB SSD</div>
+                      <div className="text-zinc-400 text-xs mt-2">$59.99/year</div>
+                      <div className="text-zinc-500 text-xs mt-1">12 TB Bandwidth</div>
+                      <div className="text-zinc-500 text-xs">KVM Virtualization</div>
+                      <button className="mt-4 w-full bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 py-2 rounded text-sm font-bold transition-all">
+                        GO →
+                      </button>
+                    </a>
                   </div>
                 </div>
 
@@ -783,6 +796,90 @@ const AppContent: React.FC = () => {
               </motion.div>
             )}
 
+            {status === "terms" && (
+              <motion.div
+                key="terms"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-8"
+              >
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 border-4 border-red-900/20 border-t-red-600 rounded-full animate-spin" />
+                  <h2 className="text-3xl font-bold text-white uppercase tracking-tight">Terms of Service</h2>
+                  <p className="text-zinc-400 max-w-2xl mx-auto">
+                    Simple terms for a simple service. Use responsibly.
+                  </p>
+                </div>
+
+                <div className="space-y-6 max-w-4xl mx-auto">
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white">1. Service Description</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      SecureNotes provides client-side encrypted, self-destructing messaging services. Messages are encrypted in your browser before transmission and automatically delete after viewing or expiration.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white">2. Acceptable Use</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      You agree to use this service legally and responsibly. Prohibited content includes: illegal activities, threats, harassment, child exploitation, malware, spam, and violations of applicable laws or regulations.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white">3. Privacy & Data</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      We don't track, log, or store personal information. Messages are encrypted client-side and stored temporarily until self-destruction. We cannot access message content. See our Privacy Policy for details.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white">4. No Guarantees</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      This service is provided "as is" without warranties. We are not liable for data loss, service interruptions, or damages arising from service use. Messages may be inaccessible if lost before viewing.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white">5. Service Limitations</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      Messages have maximum size limits and expiration periods. We may rate-limit or block abuse. Service availability is not guaranteed. We reserve the right to modify or discontinue the service.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white">6. User Responsibility</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      You are responsible for securing your passwords and links. We cannot recover lost messages or passwords. Share links carefully - once viewed, messages are permanently deleted.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white">7. Legal Compliance</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      You must comply with all applicable laws. We may cooperate with legal authorities when required by law. Illegal use may result in service termination and reporting to authorities.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
+                    <h3 className="text-xl font-bold text-white">8. Changes to Terms</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                      These terms may change periodically. Continued use constitutes acceptance of updated terms. Significant changes will be announced through the service.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <button 
+                    onClick={reset}
+                    className="px-8 py-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
+                  >
+                    Back to Shadows
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
             {status === "error" && (
               <motion.div
                 key="error"
@@ -806,7 +903,7 @@ const AppContent: React.FC = () => {
                 <ShieldCheck className="w-3 h-3" /> Privacy Protocol
               </div>
               <p className="text-zinc-400 text-sm italic leading-relaxed">
-                "{privacyMantra}"
+                Take back control of your digital life. Self-host, encrypt, and disappear.
               </p>
               <div className="pt-2 flex flex-wrap gap-3">
                 <span className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-[9px] text-zinc-500 uppercase tracking-widest">Use VPN</span>
@@ -820,14 +917,14 @@ const AppContent: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-zinc-900 p-8 bg-black/80">
-        <div className="max-w-[960px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-          <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center md:text-left">
+        <div className="max-w-[960px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+          <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center lg:text-left">
             &copy; 2026 securenotes.me
           </div>
-          <div className="flex justify-center gap-6">
+          <div className="flex flex-wrap justify-center gap-4 md:gap-6">
             <button 
               onClick={() => {
-                window.history.pushState({}, "", "/about");
+                navigate("/about");
                 setStatus("about");
               }}
               className="text-[10px] text-zinc-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-2"
@@ -836,15 +933,32 @@ const AppContent: React.FC = () => {
             </button>
             <button 
               onClick={() => {
-                window.history.pushState({}, "", "/analytics");
+                navigate("/analytics");
                 setStatus("analytics-info");
               }}
               className="text-[10px] text-zinc-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-2"
             >
               <Eye className="w-3 h-3" /> What we see
             </button>
+            <button 
+              onClick={() => {
+                navigate("/terms");
+                setStatus("terms");
+              }}
+              className="text-[10px] text-zinc-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <FileText className="w-3 h-3" /> Terms
+            </button>
+            <a 
+              href="https://github.com/pk1888/securenotes.me"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-zinc-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <Github className="w-3 h-3" /> GitHub
+            </a>
           </div>
-          <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center md:text-right">
+          <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center lg:text-right">
             Client-Side Encrypted Notes
           </div>
         </div>

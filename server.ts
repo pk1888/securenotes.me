@@ -213,6 +213,43 @@ async function startServer(): Promise<void> {
     next();
   });
 
+  // 301 redirects for old URLs
+  app.get('/index.php', (req: Request, res: Response) => {
+    res.redirect(301, '/');
+  });
+  
+  app.get('/private-note', (req: Request, res: Response) => {
+    res.redirect(301, '/send-private-note');
+  });
+  
+  app.get('/www.securenotes.me/private-note', (req: Request, res: Response) => {
+    res.redirect(301, '/send-private-note');
+  });
+  
+  app.get('/private-chat', (req: Request, res: Response) => {
+    res.redirect(301, '/send-private-note');
+  });
+  
+  app.get('/www.securenotes.me/private-chat', (req: Request, res: Response) => {
+    res.redirect(301, '/send-private-note');
+  });
+  
+  app.get('/report-bug', (req: Request, res: Response) => {
+    res.redirect(301, '/about');
+  });
+  
+  app.get('/www.securenotes.me/report-bug', (req: Request, res: Response) => {
+    res.redirect(301, '/about');
+  });
+  
+  app.get('/privacy.html', (req: Request, res: Response) => {
+    res.redirect(301, '/privacy');
+  });
+  
+  app.get('/www.securenotes.me/privacy.html', (req: Request, res: Response) => {
+    res.redirect(301, '/privacy');
+  });
+
   app.use("/api", apiLimiter);
 
   app.get("/health", async (_req: Request, res: Response) => {

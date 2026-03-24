@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Lock, Trash2, Eye, Copy, Check, ShieldAlert, Clock } from 'lucide-react';
-import CryptoJS from 'crypto-js';
+import {
+  Fingerprint,
+  ShieldCheck,
+  Eye,
+  MessageCircle
+} from 'lucide-react';
 
 interface SEOLandingPageProps {
   title: string;
@@ -22,103 +26,36 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
   faqs,
   ctaText
 }) => {
-  // Note creation state (EXACT same as main app)
-  const [content, setContent] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [expiresIn, setExpiresIn] = React.useState(60);
-  const [isCreating, setIsCreating] = React.useState(false);
-  const [created, setCreated] = React.useState(false);
-  const [resultId, setResultId] = React.useState("");
-  const [copied, setCopied] = React.useState(false);
-  const [error, setError] = React.useState("");
-
-  React.useEffect(() => {
+  useEffect(() => {
     document.title = title;
     const metaDescriptionTag = document.querySelector('meta[name="description"]');
     if (metaDescriptionTag) {
       metaDescriptionTag.setAttribute('content', metaDescription);
     }
+    
+    // Add canonical URL
+    const canonicalUrl = `${window.location.origin}${window.location.pathname}`;
+    let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
+    if (canonicalLink) {
+      canonicalLink.href = canonicalUrl;
+    } else {
+      canonicalLink = document.createElement('link');
+      canonicalLink.rel = 'canonical';
+      canonicalLink.href = canonicalUrl;
+      document.head.appendChild(canonicalLink);
+    }
+    
+    // Add robots meta tag
+    let robotsTag = document.querySelector('meta[name="robots"]') as HTMLMetaElement;
+    if (robotsTag) {
+      robotsTag.content = 'index, follow';
+    } else {
+      robotsTag = document.createElement('meta');
+      robotsTag.name = 'robots';
+      robotsTag.content = 'index, follow';
+      document.head.appendChild(robotsTag);
+    }
   }, [title, metaDescription]);
-
-  // Generate random encryption key in browser
-  const generateKey = () => {
-    return CryptoJS.lib.WordArray.random(256/8).toString();
-  };
-
-  // Derive key from password using PBKDF2 (EXACT same as main app)
-  const deriveKeyFromPassword = (password: string, salt: string) => {
-    return CryptoJS.PBKDF2(password, salt, {
-      keySize: 256/32,
-      iterations: 10000
-    }).toString();
-  };
-
-  // Create message function (EXACT same as main app)
-  const createMessage = async () => {
-    if (!content.trim()) {
-      setError("Please enter a message");
-      return;
-    }
-
-    setIsCreating(true);
-    setError("");
-
-    try {
-      // Generate encryption key and salt in browser
-      const salt = generateKey();
-      const encryptionKey = password ? deriveKeyFromPassword(password, salt) : generateKey();
-      
-      // Encrypt content in browser
-      const encryptedContent = CryptoJS.AES.encrypt(content, encryptionKey).toString();
-      
-      // Send already-encrypted content to server (no password hash)
-      const createRes = await fetch("/api/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          encryptedContent, 
-          isPasswordProtected: !!password,
-          expiresInMinutes: expiresIn
-        }),
-      });
-
-      if (!createRes.ok) throw new Error("Failed to seal message");
-
-      const data = await createRes.json();
-      
-      // Include key/salt in URL fragment with prefix (never sent to server)
-      const keyFragment = password ? `p:${salt}` : `k:${encryptionKey}`;
-      const url = `${window.location.origin}/view/${data.id}#${keyFragment}`;
-      
-      setResultId(url);
-      setCreated(true);
-      setContent("");
-      setPassword("");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(resultId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      setError("Failed to copy link");
-    }
-  };
-
-  const reset = () => {
-    setCreated(false);
-    setResultId("");
-    setContent("");
-    setPassword("");
-    setExpiresIn(60);
-    setError("");
-  };
 
   const renderSupportSection = () => {
     switch (supportSection) {
@@ -163,24 +100,46 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-300 font-mono flex flex-col selection:bg-red-900 selection:text-white">
-      {/* Header */}
       <header className="border-b border-zinc-800 p-6 flex items-center justify-between bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[960px] mx-auto w-full flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={reset}>
+          <a href="/" className="flex items-center gap-3 cursor-pointer">
             <div className="p-2 bg-red-950/30 rounded-lg border border-red-900/50">
-              <Lock className="w-8 h-8 text-red-600 animate-pulse" />
+              <Fingerprint className="w-8 h-8 text-red-600 animate-pulse" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tighter text-white uppercase">SecureNotes</h1>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Private Notes</p>
+              <div className="text-xl font-bold tracking-tighter text-white uppercase">securenotes.me</div>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Private Notes That Self-Destruct</p>
             </div>
+          </a>
+
+          <div className="hidden md:flex items-center gap-6 text-[10px] uppercase tracking-widest text-zinc-600">
+            <div className="flex items-center gap-4">
+              <span>Encrypted</span>
+              <span className="w-1 h-1 bg-zinc-800 rounded-full" />
+              <span>One-Time</span>
+            </div>
+
+            <a
+              href="https://chat.securenotes.me/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-900/30 border border-zinc-800 rounded-full text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-300 transition-all"
+            >
+              <MessageCircle className="w-3 h-3" /> Matrix Chat
+            </a>
+
+            <a
+              href="/privacy"
+              className="flex items-center gap-2 px-4 py-2 bg-red-950/20 border border-red-900/30 rounded-full text-red-500 hover:bg-red-900/30 transition-all font-bold"
+            >
+              <ShieldCheck className="w-3 h-3" /> Privacy
+            </a>
           </div>
         </div>
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-[960px] space-y-12">
-          {/* SEO Content */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -196,123 +155,27 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
             </div>
           </motion.div>
 
-          {/* Note Creation Tool - EXACT same as main app */}
+          {/* HOTFIX: CTA back to the real tool, not another broken form */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+            className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-6 text-center"
           >
-            {!created ? (
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                    <Lock className="w-3 h-3" /> Your Private Note
-                  </label>
-                  <div className="relative group p-[1px] rounded-xl overflow-hidden">
-                    {/* Border Beam Animation */}
-                    <motion.div
-                      animate={{
-                        rotate: [0, 360],
-                      }}
-                      transition={{
-                        duration: 10,
-                        repeat: Infinity,
-                        ease: "linear",
-                      }}
-                      className="absolute inset-0 bg-gradient-to-r from-red-600 via-zinc-600 to-red-600 opacity-20"
-                    />
-                    <textarea
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder="Type your private message here..."
-                      className="relative w-full h-32 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-red-900/50 transition-all resize-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                      <Clock className="w-3 h-3" /> Expires In
-                    </label>
-                    <select
-                      value={expiresIn}
-                      onChange={(e) => setExpiresIn(Number(e.target.value))}
-                      className="w-full p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-300 focus:outline-none focus:border-red-900/50 transition-all"
-                    >
-                      <option value={15}>15 minutes</option>
-                      <option value={60}>1 hour</option>
-                      <option value={360}>6 hours</option>
-                      <option value={1440}>24 hours</option>
-                      <option value={10080}>7 days</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                      <ShieldAlert className="w-3 h-3" /> Password (Optional)
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Extra security"
-                      className="w-full p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-red-900/50 transition-all"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-lg text-red-400 text-sm">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  onClick={createMessage}
-                  disabled={isCreating || !content.trim()}
-                  className="w-full p-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isCreating ? "Creating..." : "Create Private Note"}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Check className="w-5 h-5 text-green-500" />
-                    <h3 className="text-lg font-bold text-white uppercase tracking-tight">Note Created</h3>
-                  </div>
-                  <div className="space-y-3">
-                    <p className="text-sm text-zinc-500">Share this link - it will self-destruct after opening:</p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={resultId}
-                        readOnly
-                        className="flex-1 p-3 bg-black/40 border border-zinc-800 rounded-lg text-zinc-300 text-xs font-mono"
-                      />
-                      <button
-                        onClick={copyToClipboard}
-                        className="p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all"
-                      >
-                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={reset}
-                  className="w-full p-4 bg-zinc-900/30 border border-zinc-800 hover:bg-zinc-800/50 text-zinc-400 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
-                >
-                  Create Another Note
-                </button>
-              </div>
-            )}
+            <h2 className="text-2xl font-bold text-white uppercase tracking-tight">
+              Create a Private Note
+            </h2>
+            <p className="text-zinc-500 max-w-2xl mx-auto leading-relaxed">
+              Write your note, generate a link, and once it's opened, it's gone.
+              No accounts. No tracking. No permanent history.
+            </p>
+            <a
+              href="/"
+              className="inline-flex items-center justify-center px-8 py-4 bg-red-950/20 border border-red-900/50 hover:bg-red-900/30 text-red-500 rounded-xl font-bold uppercase tracking-[0.2em] transition-all"
+            >
+              Open the Tool
+            </a>
           </motion.div>
 
-          {/* Support Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -321,7 +184,6 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
             {renderSupportSection()}
           </motion.div>
 
-          {/* FAQ */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -339,7 +201,6 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
             </div>
           </motion.div>
 
-          {/* CTA */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -352,6 +213,31 @@ const SEOLandingPage: React.FC<SEOLandingPageProps> = ({
           </motion.div>
         </div>
       </main>
+
+      <footer className="border-t border-zinc-900 p-8 bg-black/80">
+        <div className="max-w-[960px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+          <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center md:text-left">
+            &copy; 2026 securenotes.me
+          </div>
+          <div className="flex justify-center gap-6">
+            <a
+              href="/about"
+              className="text-[10px] text-zinc-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <ShieldCheck className="w-3 h-3" /> About
+            </a>
+            <a
+              href="/analytics"
+              className="text-[10px] text-zinc-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-2"
+            >
+              <Eye className="w-3 h-3" /> What we see
+            </a>
+          </div>
+          <div className="text-[10px] text-zinc-600 uppercase tracking-widest text-center md:text-right">
+            Client-Side Encrypted Notes
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

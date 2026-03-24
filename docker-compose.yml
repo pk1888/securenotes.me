@@ -10,8 +10,7 @@ services:
     environment:
       - NODE_ENV=production
       - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY}
-      - ENCRYPTION_SECRET=${ENCRYPTION_SECRET}
-      - APP_URL=${APP_URL}
+      - APP_ORIGIN=${APP_ORIGIN}
     volumes:
       # Persistent storage for encrypted SQLite database
       # In Coolify, map this to a persistent storage volume

@@ -42,14 +42,14 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 
 # Copy server files
-COPY server.ts ./
-COPY tsconfig.json ./
-
-# Create data directory for persistent SQLite storage
-RUN mkdir -p /app/data
+COPY --from=builder /app/server.ts ./
+COPY --from=builder /app/tsconfig.json ./
 
 # Install tsx for running TypeScript in production
 RUN npm install -g tsx
+
+# Create data directory for persistent SQLite storage
+RUN mkdir -p /app/data
 
 # Expose port
 EXPOSE 3000

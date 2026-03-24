@@ -7,3 +7,6 @@ coverage/
 .env*
 !.env.example
 *.db
+.windsurf/
+messages.db
+package-lock.json
